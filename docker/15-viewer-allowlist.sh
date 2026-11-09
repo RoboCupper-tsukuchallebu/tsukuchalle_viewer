@@ -22,7 +22,16 @@ write_map() {
 }
 {
     write_map http_origin viewer_origin_allowed "${VIEWER_ALLOWED_ORIGINS:-}" 0
+    printf 'map $http_referer $viewer_referer_allowed {\n    default 0;\n'
+    for value in ${VIEWER_ALLOWED_ORIGINS:-}; do
+        if printf '%s\n' "$value" | LC_ALL=C grep -Eq '^https?://[][A-Za-z0-9._:-]+$'; then
+            escaped=$(printf '%s' "$value" | sed -e 's/\./\\./g' -e 's/\[/\\[/g' -e 's/\]/\\]/g')
+            printf '    "~^%s/" 1;\n' "$escaped"
+        fi
+    done
+    printf '}\n'
+    printf 'map "$request_method:$http_origin:$viewer_referer_allowed" $viewer_request_origin_ok {\n    default $viewer_origin_allowed;\n    "GET::1" 1;\n}\n'
     write_map http_host viewer_host_allowed "${VIEWER_ALLOWED_HOSTS:-}" 0
-    write_map http_origin viewer_origin_exact "${VIEWER_ALLOWED_ORIGINS:-}" 1
+    write_map http_origin viewer_origin_exact "${VIEWER_ALLOWED_ORIGINS:-}" 1 | sed 's/default 0;/default 0; "" "";/'
     write_map http_host viewer_host_exact "${VIEWER_ALLOWED_HOSTS:-}" 1
 } > /etc/nginx/conf.d/00-viewer-allowlist.conf

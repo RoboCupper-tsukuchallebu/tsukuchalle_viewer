@@ -1,0 +1,10 @@
+{
+  "drive": {"project": "DRIVERS_DIR", "service": "drive"},
+  "teleop": {"project": "DRIVERS_DIR", "service": "teleop"},
+  "joy": {"project": "DRIVERS_DIR", "service": "joy"},
+  "mux": {"project": "DRIVERS_DIR", "service": "mux"},
+  "nav": {"project": "LIGHTNAV_DIR", "service": "nav"},
+  "localization_mapping": {"project": "LIGHTNAV_DIR", "service": "localization", "mode": "mapping"},
+  "localization_localization": {"project": "LIGHTNAV_DIR", "service": "localization", "mode": "localization"},
+  "bag_record": {"project": "DRIVERS_DIR", "service": "drive", "bag": true}
+}

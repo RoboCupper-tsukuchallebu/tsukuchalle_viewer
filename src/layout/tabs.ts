@@ -33,6 +33,7 @@ export const tabDefinitions: TabDefinition[] = [
   { id: "satellites", label: "衛星", load: async () => (await import("../panels/satellites/index.ts")).mountPanel },
   { id: "status", label: "状態", load: async () => (await import("../panels/status/index.ts")).mountPanel },
   { id: "parameters", label: "パラメータ", load: async () => (await import("../panels/parameters/index.ts")).mountPanel },
+  { id: "services", label: "サービス", load: async () => (await import("../panels/services/index.ts")).mountPanel },
   { id: "channels", label: "チャネル", load: () => Promise.resolve(createChannelListPanel) },
 ];
 
