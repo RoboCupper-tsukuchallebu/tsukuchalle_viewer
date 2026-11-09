@@ -26,6 +26,9 @@ if [ "${buildArchitecture}" != "${robotArchitecture}" ]; then
 fi
 
 docker build -t "${imageName}:${imageTag}" .
+docker build -t "tsukuchalle-service-manager:${imageTag}" service-manager
+docker save "tsukuchalle-service-manager:${imageTag}" | gzip | ssh "${robotTarget}" "gunzip | docker load"
+ssh "${robotTarget}" "docker tag tsukuchalle-service-manager:${imageTag} tsukuchalle-service-manager:latest"
 docker save "${imageName}:${imageTag}" | gzip | ssh "${robotTarget}" "gunzip | docker load"
 ssh "${robotTarget}" "docker tag ${imageName}:${imageTag} ${imageName}:latest"
 

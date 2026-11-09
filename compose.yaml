@@ -12,7 +12,22 @@ services:
       VIEWER_PORT: ${VIEWER_PORT:-8080}
       VIEWER_BRIDGE_PORT: ${VIEWER_BRIDGE_PORT:-8765}
       VIEWER_CONTROL_BRIDGE_PORT: ${VIEWER_CONTROL_BRIDGE_PORT:-8766}
+      SERVICE_MANAGER_PORT: ${SERVICE_MANAGER_PORT:-8790}
       VIEWER_ALLOWED_ORIGINS: ${VIEWER_ALLOWED_ORIGINS:-}
       VIEWER_ALLOWED_HOSTS: ${VIEWER_ALLOWED_HOSTS:-}
     init: true
     restart: "no"
+  service_manager:
+    image: tsukuchalle-service-manager:${SERVICE_MANAGER_IMAGE_TAG:-latest}
+    network_mode: host
+    environment:
+      SERVICE_MANAGER_PORT: ${SERVICE_MANAGER_PORT:-8790}
+      DRIVERS_DIR: ${DRIVERS_DIR:?set DRIVERS_DIR}
+      LIGHTNAV_DIR: ${LIGHTNAV_DIR:?set LIGHTNAV_DIR}
+      BAGS_DIR: ${BAGS_DIR:?set BAGS_DIR}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DRIVERS_DIR}:${DRIVERS_DIR}:ro
+      - ${LIGHTNAV_DIR}:${LIGHTNAV_DIR}:ro
+      - ${BAGS_DIR}:${BAGS_DIR}:ro
+    restart: unless-stopped
