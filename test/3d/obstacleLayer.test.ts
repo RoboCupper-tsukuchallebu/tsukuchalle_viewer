@@ -55,3 +55,59 @@ it("表示時だけ購読し、最新の grid を 5 Hz に間引く", () => {
   expect(update).toHaveBeenCalledTimes(2);
   release(); vi.useRealTimers();
 });
+
+it("非対称グリッドの行と列を保持し、各フレームから表示フレームに変換する", async () => {
+  const { TransformTree } = await import("../../src/panels/3d/transformTree.ts");
+  const { setObjectTransform } = await import("../../src/panels/3d/frameTransform.ts");
+  const layer = createObstacleLayer(new Scene());
+  const asymmetricGrid = { ...grid, header: { frame_id: "grid_frame" }, info: { ...grid.info, width: 3, height: 2 }, data: [0, 100, 0, 100, 0, 0] };
+  expect(layer.update(asymmetricGrid, false)).toBe(true);
+  const parsed = readObstacleGrid(asymmetricGrid);
+  if (!parsed) throw new Error("グリッドを読めません");
+  expect([...gridPixels(parsed, false)].filter((_, index) => index % 4 === 0)).toEqual([0, 255, 0, 255, 0, 0]);
+  const mesh = layer.gridGroup.children[0];
+  expect(mesh?.scale.x).toBeCloseTo(0.3);
+  expect(mesh?.scale.y).toBeCloseTo(0.2);
+  const tree = new TransformTree();
+  tree.update({ transforms: [{ header: { frame_id: "map" }, child_frame_id: "grid_frame", transform: { translation: { x: 4, y: 5, z: 0 }, rotation: { x: 0, y: 0, z: 0, w: 1 } } }] }, true, 0);
+  expect(setObjectTransform(layer.gridGroup, layer.frame, "map", tree)).toBe(true);
+  expect(layer.gridGroup.position.x).toBe(4);
+  expect(layer.zoneFrame).toBe("grid_frame");
+  layer.updateStatus({ header: { frame_id: "status_frame" } });
+  expect(layer.zoneFrame).toBe("status_frame");
+  expect(setObjectTransform(layer.zoneGroup, layer.zoneFrame, "map", tree)).toBe(false);
+  layer.updateStatus({ header: { frame_id: "" } });
+  expect(layer.zoneFrame).toBe("grid_frame");
+  layer.dispose();
+});
+
+it("パラメータを優先し、取得失敗と不正値は入力欄に戻して警告する", async () => {
+  const client = new FoxgloveClient({ url: "" });
+  const names = ["stop_zone_x_m", "stop_zone_y_half_m", "slow_zone_x_m", "slow_zone_y_half_m"];
+  const getParameters = vi.spyOn(client, "getParameters").mockResolvedValue(names.map((name, index) => ({ name: `/obstacle_monitor.${name}`, value: [1, 0.4, 2.5, 0.6][index] ?? 0 })));
+  const form = createControlsForm();
+  const layer = createObstacleLayer(new Scene());
+  const updateZones = vi.spyOn(layer, "updateZones");
+  const release = createObstacleController({ connections: { viewing: client }, topicStore: new TopicStore() } as PanelContext, form, layer, () => {}, () => {});
+  form.obstacle.checked = true;
+  form.obstacle.dispatchEvent(new Event("change"));
+  await Promise.resolve();
+  expect(form.zoneSource.textContent).toContain("パラメータ");
+  expect(updateZones).toHaveBeenLastCalledWith([1, 0.8, 2.5, 1.2]);
+  form.obstacle.checked = false;
+  form.obstacle.dispatchEvent(new Event("change"));
+  getParameters.mockRejectedValue(new Error("failed"));
+  form.obstacle.checked = true;
+  form.obstacle.dispatchEvent(new Event("change"));
+  await Promise.resolve();
+  await Promise.resolve();
+  expect(form.zoneSource.textContent).toContain("入力欄");
+  const firstDimension = form.zoneDimensions[0];
+  if (!firstDimension) throw new Error("入力欄がありません");
+  for (const invalidValue of ["", "0", "-1", "NaN"]) {
+    firstDimension.value = invalidValue;
+    firstDimension.dispatchEvent(new Event("change"));
+    expect(form.zoneWarning.textContent).toContain("0 より大きい");
+  }
+  release();
+});

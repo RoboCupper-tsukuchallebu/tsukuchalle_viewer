@@ -26,7 +26,9 @@ export function gridPixels(grid: Grid, showUnknown: boolean): Uint8Array {
 }
 export function formatObstacleStatus(value: unknown): string {
   if (!isRecord(value)) return "障害物状態: 受信待ち";
-  const stop = value[obstacleStatusFields.stop], slow = value[obstacleStatusFields.slow], distance = value[obstacleStatusFields.distance];
+  const stop = value[obstacleStatusFields.stop];
+  const slow = value[obstacleStatusFields.slow];
+  const distance = value[obstacleStatusFields.distance];
   if (typeof stop !== "boolean" || typeof slow !== "boolean" || typeof distance !== "number" || Number.isNaN(distance)) return "障害物状態: 形式を読めません";
   return `stop: ${stop ? "占有" : "空き"} / slow: ${slow ? "占有" : "空き"} / 最近傍: ${Number.isFinite(distance) ? `${distance.toFixed(2)} m` : "なし"}`;
 }
@@ -34,28 +36,39 @@ export function zonePoints(length: number, width: number): number[] {
   return [0, -width / 2, obstacleHeight, length, -width / 2, obstacleHeight, length, width / 2, obstacleHeight, 0, width / 2, obstacleHeight];
 }
 export function createObstacleLayer(scene: Scene) {
-  const gridGroup = new Group(), zoneGroup = new Group();
+  const gridGroup = new Group();
+  const zoneGroup = new Group();
   scene.add(gridGroup, zoneGroup);
   let mesh: Mesh<PlaneGeometry, MeshBasicMaterial> | undefined;
   let texture: DataTexture | undefined;
   let grid: Grid | undefined;
   let frame = "";
+  let statusFrame = "";
   const lines: LineLoop[] = [];
   function updateZones(dimensions: number[]): void {
-    lines.forEach((line) => { zoneGroup.remove(line); line.geometry.dispose(); (line.material as LineBasicMaterial).dispose(); });
+    lines.forEach((line) => {
+      zoneGroup.remove(line);
+      line.geometry.dispose();
+      (line.material as LineBasicMaterial).dispose();
+    });
     lines.length = 0;
     for (let index = 0; index < 2; index++) {
       const geometry = new BufferGeometry();
       geometry.setAttribute("position", new Float32BufferAttribute(zonePoints(dimensions[index * 2] ?? 0, dimensions[index * 2 + 1] ?? 0), 3));
       const line = new LineLoop(geometry, new LineBasicMaterial({ color: index === 0 ? 0xff3333 : 0xffcc33 }));
-      lines.push(line); zoneGroup.add(line);
+      lines.push(line);
+      zoneGroup.add(line);
     }
   }
   function draw(showUnknown: boolean): void {
     if (!grid) return;
     const pixels = gridPixels(grid, showUnknown);
     if (!texture || texture.image.width !== grid.width || texture.image.height !== grid.height) {
-      if (mesh) { gridGroup.remove(mesh); mesh.geometry.dispose(); mesh.material.dispose(); }
+      if (mesh) {
+        gridGroup.remove(mesh);
+        mesh.geometry.dispose();
+        mesh.material.dispose();
+      }
       texture?.dispose();
       texture = new DataTexture(pixels, grid.width, grid.height, RGBAFormat, UnsignedByteType);
       mesh = new Mesh(new PlaneGeometry(1, 1), new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: DoubleSide }));
@@ -68,6 +81,42 @@ export function createObstacleLayer(scene: Scene) {
       mesh.quaternion.copy(grid.rotation);
     }
   }
-  updateZones([0.5, 0.8, 2.5, 1.2]);
-  return { gridGroup, zoneGroup, get frame() { return frame; }, update(value: unknown, showUnknown: boolean): boolean { const parsed = readObstacleGrid(value); if (!parsed) return false; grid = parsed; frame = grid.frame; draw(showUnknown); return true; }, redraw(showUnknown: boolean) { draw(showUnknown); }, updateZones, clear() { grid = undefined; frame = ""; gridGroup.visible = false; zoneGroup.visible = false; }, dispose() { scene.remove(gridGroup, zoneGroup); mesh?.geometry.dispose(); mesh?.material.dispose(); texture?.dispose(); lines.forEach((line) => { line.geometry.dispose(); (line.material as LineBasicMaterial).dispose(); }); } };
+  updateZones([1.0, 0.8, 2.5, 1.2]);
+  return {
+    gridGroup,
+    zoneGroup,
+    get frame() { return frame; },
+    get zoneFrame() { return statusFrame || frame; },
+    updateStatus(value: unknown) {
+      statusFrame = isRecord(value) && isRecord(value.header) && typeof value.header.frame_id === "string"
+        ? value.header.frame_id : "";
+    },
+    update(value: unknown, showUnknown: boolean): boolean {
+      const parsed = readObstacleGrid(value);
+      if (!parsed) return false;
+      grid = parsed;
+      frame = grid.frame;
+      draw(showUnknown);
+      return true;
+    },
+    redraw(showUnknown: boolean) { draw(showUnknown); },
+    updateZones,
+    clear() {
+      grid = undefined;
+      frame = "";
+      statusFrame = "";
+      gridGroup.visible = false;
+      zoneGroup.visible = false;
+    },
+    dispose() {
+      scene.remove(gridGroup, zoneGroup);
+      mesh?.geometry.dispose();
+      mesh?.material.dispose();
+      texture?.dispose();
+      lines.forEach((line) => {
+        line.geometry.dispose();
+        (line.material as LineBasicMaterial).dispose();
+      });
+    },
+  };
 }
