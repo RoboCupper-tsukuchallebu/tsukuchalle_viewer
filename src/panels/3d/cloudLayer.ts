@@ -2,7 +2,7 @@ import { BufferAttribute, BufferGeometry, Points, PointsMaterial } from "three";
 import type { ExtractedPointCloud } from "../../decoding/pointCloud.ts";
 
 export class CloudLayer {
-  readonly object: Points;
+  readonly object: Points<BufferGeometry, PointsMaterial>;
   private geometry: BufferGeometry;
   private capacity: number;
   frame = "";
@@ -10,6 +10,8 @@ export class CloudLayer {
     this.capacity = capacity;
     this.geometry = this.createGeometry(capacity);
     this.object = new Points(this.geometry, new PointsMaterial({ size: 0.08, vertexColors: true }));
+    // 点群は表示フレームの変換で動くため、カリングを使わない。
+    this.object.frustumCulled = false;
   }
   private createGeometry(capacity: number): BufferGeometry {
     const geometry = new BufferGeometry();
@@ -26,14 +28,25 @@ export class CloudLayer {
       this.object.geometry = this.geometry;
     }
     // 大きな点群の割り当てを毎フレーム繰り返さないため、属性配列を再利用する。
-    const position = this.geometry.getAttribute("position") as BufferAttribute;
-    const color = this.geometry.getAttribute("color") as BufferAttribute;
-    (position.array as Float32Array).set(result.points);
-    (color.array as Float32Array).set(result.colors);
-    position.needsUpdate = true; color.needsUpdate = true;
+    const position = this.geometry.getAttribute("position");
+    const color = this.geometry.getAttribute("color");
+    if (
+      !(position instanceof BufferAttribute) ||
+      !(color instanceof BufferAttribute) ||
+      !(position.array instanceof Float32Array) ||
+      !(color.array instanceof Float32Array)
+    ) {
+      throw new Error("点群のバッファ形式が不正です");
+    }
+    position.array.set(result.points);
+    color.array.set(result.colors);
+    position.needsUpdate = true;
+    color.needsUpdate = true;
     this.geometry.setDrawRange(0, result.count);
-    this.geometry.computeBoundingSphere();
     this.frame = frame;
   }
-  dispose(): void { this.geometry.dispose(); (this.object.material as PointsMaterial).dispose(); }
+  dispose(): void {
+    this.geometry.dispose();
+    this.object.material.dispose();
+  }
 }

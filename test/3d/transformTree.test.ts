@@ -5,7 +5,9 @@ import { TransformTree, type TransformMessage } from "../../src/panels/3d/transf
 
 it("実 CDR の変換を合成し、逆変換と受信時刻を返す", () => {
   const fixture = fixtures.tfMessage;
-  const message = createCdrDecoder(fixture.schema)(Uint8Array.from(Buffer.from(fixture.hex, "hex"))) as TransformMessage;
+  const message = createCdrDecoder(fixture.schema)(
+    Uint8Array.from(Buffer.from(fixture.hex, "hex")),
+  ) as TransformMessage;
   const transformTree = new TransformTree();
   transformTree.update(message, false, 123);
   const forward = transformTree.lookup("base_link", "map");

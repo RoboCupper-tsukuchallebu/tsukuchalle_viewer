@@ -12,14 +12,20 @@ export class LatestWorker {
   private busy = false;
   private pending: PointCloudRequest | undefined;
   private worker: WorkerPort;
-  constructor(worker: WorkerPort, onResult: (result: PointCloudResponse) => void, onError: (message: string) => void) {
+  constructor(
+    worker: WorkerPort,
+    onResult: (result: PointCloudResponse) => void,
+    onError: (message: string) => void,
+  ) {
     this.worker = worker;
     worker.onmessage = (event) => {
       this.busy = false;
       onResult(event.data);
       const next = this.pending;
       this.pending = undefined;
-      if (next) this.submit(next);
+      if (next) {
+        this.submit(next);
+      }
     };
     worker.onerror = (event) => {
       this.busy = false;
@@ -28,9 +34,15 @@ export class LatestWorker {
     };
   }
   submit(request: PointCloudRequest): void {
-    if (this.busy) { this.pending = request; return; }
+    if (this.busy) {
+      this.pending = request;
+      return;
+    }
     this.busy = true;
     this.worker.postMessage(request);
   }
-  dispose(): void { this.pending = undefined; this.worker.terminate(); }
+  dispose(): void {
+    this.pending = undefined;
+    this.worker.terminate();
+  }
 }

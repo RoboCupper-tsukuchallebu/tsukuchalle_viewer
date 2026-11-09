@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import fixtures from "../fixtures/rosMessages.json";
 import { createChannelDecoder } from "../../src/decoding/channelDecoder.ts";
-import { extractPointCloud, type PointCloudMessage } from "../../src/decoding/pointCloud.ts";
+import {
+  extractPointCloud,
+  isPointCloudMessage,
+  type PointCloudMessage,
+} from "../../src/decoding/pointCloud.ts";
 
 function decode(fixture: { schema: string; hex: string }): PointCloudMessage {
   const decoder = createChannelDecoder({ encoding: "cdr", schema: fixture.schema });
@@ -37,9 +41,18 @@ describe("点群の取り出し", () => {
   });
   it("float32 以外の座標と不足したデータを拒む", () => {
     const message = decode(fixtures.pointCloudXyz);
-    const fields = message.fields.map((field) => field.name === "x" ? { ...field, datatype: 1 } : field);
+    const fields = message.fields.map((field) => (field.name === "x" ? { ...field, datatype: 1 } : field));
     expect(() => extractPointCloud({ ...message, fields }, 10)).toThrow();
     expect(() => extractPointCloud({ ...message, data: message.data.slice(0, 1) }, 10)).toThrow();
   });
+});
 
+it("点群の形式を検証する", () => {
+  const decoder = createChannelDecoder({ encoding: "cdr", schema: fixtures.pointCloudXyz.schema });
+  if (!decoder.isDecodable) {
+    throw new Error(decoder.reason);
+  }
+  const message = decoder.decode(Uint8Array.from(Buffer.from(fixtures.pointCloudXyz.hex, "hex")));
+  expect(isPointCloudMessage(message)).toBe(true);
+  expect(isPointCloudMessage({ header: { frame_id: "map" }, width: 1 })).toBe(false);
 });

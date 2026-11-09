@@ -10,7 +10,61 @@ export type PointCloudMessage = {
   data: Uint8Array;
 };
 
-export type ExtractedPointCloud = { points: Float32Array; colors: Float32Array; count: number; minimumZ: number; maximumZ: number };
+export function isPointCloudMessage(
+  value: unknown,
+): value is PointCloudMessage & { header: { frame_id: string } } {
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
+  if (
+    !("header" in value) ||
+    typeof value.header !== "object" ||
+    value.header === null ||
+    !("frame_id" in value.header) ||
+    typeof value.header.frame_id !== "string"
+  ) {
+    return false;
+  }
+  if (
+    !("width" in value) ||
+    typeof value.width !== "number" ||
+    !("height" in value) ||
+    typeof value.height !== "number" ||
+    !("point_step" in value) ||
+    typeof value.point_step !== "number" ||
+    !("row_step" in value) ||
+    typeof value.row_step !== "number" ||
+    !("is_bigendian" in value) ||
+    typeof value.is_bigendian !== "boolean" ||
+    !("data" in value) ||
+    !(value.data instanceof Uint8Array) ||
+    !("fields" in value) ||
+    !Array.isArray(value.fields)
+  ) {
+    return false;
+  }
+  return value.fields.every(
+    (field: unknown) =>
+      typeof field === "object" &&
+      field !== null &&
+      "name" in field &&
+      typeof field.name === "string" &&
+      "offset" in field &&
+      typeof field.offset === "number" &&
+      "datatype" in field &&
+      typeof field.datatype === "number" &&
+      "count" in field &&
+      typeof field.count === "number",
+  );
+}
+
+export type ExtractedPointCloud = {
+  points: Float32Array;
+  colors: Float32Array;
+  count: number;
+  minimumZ: number;
+  maximumZ: number;
+};
 const float32Datatype = 7;
 const float32Bytes = 4;
 
@@ -20,12 +74,21 @@ export function extractPointCloud(message: PointCloudMessage, maximumPoints: num
   if (!Number.isSafeInteger(maximumPoints) || maximumPoints < 1) throw new Error("点数の上限が不正です");
   const offsets = ["x", "y", "z"].map((name) => {
     const field = message.fields.find((candidate) => candidate.name === name);
-    if (!field || field.datatype !== float32Datatype || field.count < 1 || field.offset < 0 || field.offset + float32Bytes > message.point_step) {
+    if (
+      !field ||
+      field.datatype !== float32Datatype ||
+      field.count < 1 ||
+      field.offset < 0 ||
+      field.offset + float32Bytes > message.point_step
+    ) {
       throw new Error(`${name} は点の範囲内の float32 である必要があります`);
     }
     return field.offset;
   });
-  if (message.row_step < message.width * message.point_step || message.data.byteLength < message.row_step * message.height) {
+  if (
+    message.row_step < message.width * message.point_step ||
+    message.data.byteLength < message.row_step * message.height
+  ) {
     throw new Error("点群のデータが不足しています");
   }
   const view = new DataView(message.data.buffer, message.data.byteOffset, message.data.byteLength);
@@ -51,7 +114,7 @@ export function extractPointCloud(message: PointCloudMessage, maximumPoints: num
   let minimumZ = Infinity;
   let maximumZ = -Infinity;
   for (let index = 0; index < count; index++) {
-    const source = Math.floor(index * validCount / count) * 3;
+    const source = Math.floor((index * validCount) / count) * 3;
     const destination = index * 3;
     points[destination] = finitePoints[source] ?? 0;
     points[destination + 1] = finitePoints[source + 1] ?? 0;
