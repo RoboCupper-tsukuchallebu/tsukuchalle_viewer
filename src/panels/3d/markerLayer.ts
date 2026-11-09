@@ -32,16 +32,16 @@ function makeObject(m: Marker): Object3D | undefined {
   if (m.type === 1) { const mesh = new Mesh(new BoxGeometry(1, 1, 1), material()); mesh.scale.set(m.scale.x, m.scale.y, m.scale.z); return mesh; }
   if (m.type === 7) {
     const group = new Group();
-    points.forEach((p, i) => { const mat = material(); if (m.colors.length === points.length) { const c = m.colors[i]; mat.color.setRGB(c.r, c.g, c.b); mat.opacity = c.a; mat.transparent = c.a < 1; } const mesh = new Mesh(new SphereGeometry(0.5, 12, 8), mat); mesh.position.copy(p); mesh.scale.set(m.scale.x, m.scale.y, m.scale.z); group.add(mesh); });
+    points.forEach((p, i) => { const mat = material(); if (m.colors.length === points.length) { const c = m.colors[i]; if (c) { mat.color.setRGB(c.r, c.g, c.b); mat.opacity = c.a; mat.transparent = c.a < 1; } } const mesh = new Mesh(new SphereGeometry(0.5, 12, 8), mat); mesh.position.copy(p); mesh.scale.set(m.scale.x, m.scale.y, m.scale.z); group.add(mesh); });
     return group;
   }
   if (m.type === 0) {
-    const origin = points.length >= 2 ? points[0] : new Vector3();
-    const delta = points.length >= 2 ? points[1].clone().sub(origin) : new Vector3(m.scale.x, 0, 0);
+    const origin = points.length >= 2 ? (points[0] ?? new Vector3()) : new Vector3();
+    const delta = points.length >= 2 ? (points[1] ?? new Vector3()).clone().sub(origin) : new Vector3(m.scale.x, 0, 0);
     const length = delta.length(); if (!length) return new Group();
     const headLength = points.length >= 2 ? (m.scale.z || length * 0.2) : length * 0.23;
     const arrow = new ArrowHelper(delta.normalize(), origin, length, color, headLength, points.length >= 2 ? m.scale.y : m.scale.z);
-    arrow.line.material.transparent = m.color.a < 1; arrow.line.material.opacity = m.color.a; arrow.cone.material.transparent = m.color.a < 1; arrow.cone.material.opacity = m.color.a;
+    for (const part of [arrow.line, arrow.cone]) { const materials = Array.isArray(part.material) ? part.material : [part.material]; for (const mat of materials) { mat.transparent = m.color.a < 1; mat.opacity = m.color.a; } }
     return arrow;
   }
   if (m.type === 9) {

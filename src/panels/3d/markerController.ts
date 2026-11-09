@@ -1,5 +1,6 @@
 import type { Scene } from "three";
 import type { PanelContext } from "../../layout/panelContext.ts";
+import { isRecord } from "./valueGuards.ts";
 import { createMarkerLayer } from "./markerLayer.ts";
 import type { TransformTree } from "./transformTree.ts";
 
@@ -9,13 +10,20 @@ export function createMarkerController(root: HTMLElement, scene: Scene, context:
   const legend = document.createElement("legend"); legend.textContent = "MarkerArray"; container.append(legend); root.append(container);
   const client = context.connections.viewing;
   const enabled = new Map<string, boolean>();
-  const active = new Map<string, { release: () => void; layer: ReturnType<typeof createMarkerLayer>; pending: { value: unknown; time: number }[] }>();
+  const active = new Map<string, { release: () => void; layer: ReturnType<typeof createMarkerLayer>; pending: Map<string, { value: unknown; time: number }> }>();
   function stop(topic: string) { const item = active.get(topic); if (item) { item.release(); item.layer.clear(); active.delete(topic); } }
   function start(topic: string) {
     if (active.has(topic)) return;
-    const layer = createMarkerLayer(scene, tree, selectedFrame); const pending: { value: unknown; time: number }[] = [];
+    const layer = createMarkerLayer(scene, tree, selectedFrame); const pending = new Map<string, { value: unknown; time: number }>();
     const releaseClient = client.subscribeToTopic(topic);
-    const releaseStore = context.topicStore.subscribe(topic, (entry) => { pending.push({ value: entry.value, time: entry.receivedAtMs }); });
+    const releaseStore = context.topicStore.subscribe(topic, (entry) => {
+      if (!isRecord(entry.value) || !Array.isArray(entry.value.markers)) return;
+      for (const marker of entry.value.markers) {
+        if (!isRecord(marker)) continue;
+        if (marker.action === 3) { pending.clear(); pending.set("clear", { value: { markers: [marker] }, time: entry.receivedAtMs }); }
+        else if (typeof marker.ns === "string" && typeof marker.id === "number") pending.set(JSON.stringify([marker.ns, marker.id]), { value: { markers: [marker] }, time: entry.receivedAtMs });
+      }
+    });
     active.set(topic, { layer, pending, release: () => { releaseClient(); releaseStore(); } });
   }
   function updateTopics() {
@@ -32,6 +40,6 @@ export function createMarkerController(root: HTMLElement, scene: Scene, context:
     }
   }
   const releaseChannels = client.on("channelsChanged", updateTopics); updateTopics();
-  const timer = setInterval(() => { const now = Date.now(); for (const item of active.values()) { for (const event of item.pending.splice(0)) item.layer.update(event.value, event.time); item.layer.refresh(now); } }, 100);
+  const timer = setInterval(() => { const now = Date.now(); for (const item of active.values()) { for (const event of item.pending.values()) item.layer.update(event.value, event.time); item.pending.clear(); item.layer.refresh(now); } }, 100);
   return () => { clearInterval(timer); releaseChannels(); for (const topic of active.keys()) stop(topic); container.remove(); };
 }
