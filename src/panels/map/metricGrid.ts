@@ -1,6 +1,14 @@
 import { statusColor, toMetres, type Fix } from "./model.ts";
 import { trailDefinitions } from "./ui.ts";
 
+export function gridOffsets(extent: number, gridStep: number): number[] {
+  const offsets: number[] = [];
+  for (let offset = Math.ceil(-2 * extent / gridStep) * gridStep; offset <= 2 * extent; offset += gridStep) {
+    offsets.push(offset);
+  }
+  return offsets;
+}
+
 export function drawMetricGrid(canvas: HTMLCanvasElement, origin: Fix, trails: readonly (readonly Fix[])[]): void {
   const drawing = canvas.getContext("2d");
   if (!drawing) return;
@@ -14,7 +22,7 @@ export function drawMetricGrid(canvas: HTMLCanvasElement, origin: Fix, trails: r
   const gridStep = Math.pow(10, Math.floor(Math.log10(extent)));
   drawing.strokeStyle = "#cccccc";
   drawing.lineWidth = 1;
-  for (let offset = -extent * 2; offset <= extent * 2; offset += gridStep) {
+  for (const offset of gridOffsets(extent, gridStep)) {
     drawing.beginPath();
     drawing.moveTo(centerX + offset * scale, 0);
     drawing.lineTo(centerX + offset * scale, canvas.height);
@@ -33,13 +41,14 @@ export function drawMetricGrid(canvas: HTMLCanvasElement, origin: Fix, trails: r
       else drawing.lineTo(horizontal, vertical);
     });
     drawing.stroke();
-    const last = trail.at(-1);
-    const fix = trails[index]?.at(-1);
-    if (!last || !fix) return;
-    drawing.fillStyle = statusColor(fix.status);
-    drawing.beginPath();
-    drawing.arc(centerX + last.east * scale, centerY - last.north * scale, 6, 0, Math.PI * 2);
-    drawing.fill();
+    trail.forEach((point, pointIndex) => {
+      const fix = trails[index]?.[pointIndex];
+      if (!fix) return;
+      drawing.fillStyle = statusColor(fix.status);
+      drawing.beginPath();
+      drawing.arc(centerX + point.east * scale, centerY - point.north * scale, 3, 0, Math.PI * 2);
+      drawing.fill();
+    });
   });
   drawing.fillStyle = "#222";
   drawing.fillText(`格子間隔: ${gridStep} m`, 10, 20);

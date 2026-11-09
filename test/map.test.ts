@@ -1,3 +1,4 @@
+import { gridOffsets } from "../src/panels/map/metricGrid.ts";
 import { describe, expect, it } from "vitest";
 import { appendFix, attribution, maximumTrailPoints, nextTileFailures, readFix, statusColor, toMetres } from "../src/panels/map/model.ts";
 
@@ -58,4 +59,11 @@ it("座標が有効な NO_FIX は灰色で表示し初期値は除外する", ()
   expect(fix?.status).toBe(-1);
   expect(statusColor(-1)).toBe("#777777");
   expect(readFix({ ...valid, latitude: 0, longitude: 0 })).toBeUndefined();
+});
+
+it("格子線は原点と格子間隔の倍数を通る", () => {
+  const offsets = gridOffsets(37, 10);
+  expect(offsets).toContain(0);
+  expect(offsets.every((offset) => offset % 10 === 0)).toBe(true);
+  expect(offsets).toEqual([-70, -60, -50, -40, -30, -20, -10, 0, 10, 20, 30, 40, 50, 60, 70]);
 });

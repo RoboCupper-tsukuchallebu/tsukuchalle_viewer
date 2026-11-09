@@ -3,7 +3,7 @@ import "leaflet/dist/leaflet.css";
 import "./map.css";
 import { mapTiles } from "../../config.ts";
 import type { PanelContext } from "../../layout/panelContext.ts";
-import { appendFix, attribution, nextTileFailures, readFix, statusColor, tileFailureLimit, type Fix } from "./model.ts";
+import { appendFix, attribution, maximumTrailPoints, nextTileFailures, readFix, statusColor, tileFailureLimit, type Fix } from "./model.ts";
 import { drawMetricGrid } from "./metricGrid.ts";
 import { isTileSource, tileSources } from "./tileSources.ts";
 import { createMapUi, trailDefinitions } from "./ui.ts";
@@ -18,18 +18,19 @@ function createLayerSelector(ui: MapUi, map: leaflet.Map, onFallback: () => void
   const chooseLayer = (): void => {
     const source = ui.select.value;
     if (!isTileSource(source)) return;
-    tiles?.off();
     tiles?.remove();
+    tiles?.off("tileerror tileload");
     failures = 0;
     ui.canvas.hidden = true;
     ui.mapElement.hidden = false;
     const credit = attribution(source);
     ui.link.textContent = credit.label;
     ui.link.href = credit.url;
-    // 写真には 14 未満のタイルがない。Leaflet がズーム 14 のタイルを縮小して表示する。
+    const minimumZoom = source === "photo" ? mapTiles.photoMinimumNativeZoom : mapTiles.minimumZoom;
+    if (map.getZoom() < minimumZoom) map.setZoom(minimumZoom, { animate: false });
+    map.setMinZoom(minimumZoom);
     tiles = leaflet.tileLayer(tileSources[source].url, {
-      minZoom: mapTiles.minimumZoom, maxZoom: mapTiles.maximumZoom,
-      minNativeZoom: source === "photo" ? mapTiles.photoMinimumNativeZoom : mapTiles.minimumZoom,
+      minZoom: minimumZoom, maxZoom: mapTiles.maximumZoom,
       maxNativeZoom: source === "photo" ? mapTiles.photoMaximumNativeZoom : mapTiles.maximumZoom,
       keepBuffer: 0,
     });
@@ -45,14 +46,15 @@ function createLayerSelector(ui: MapUi, map: leaflet.Map, onFallback: () => void
     tiles.addTo(map);
     map.invalidateSize();
   };
-  return { chooseLayer, dispose: () => { tiles?.off(); tiles?.remove(); } };
+  return { chooseLayer, dispose: () => { tiles?.remove(); tiles?.off("tileerror tileload"); } };
 }
 
 function createRenderer(ui: MapUi) {
-  const map = leaflet.map(ui.mapElement, { attributionControl: false, minZoom: mapTiles.minimumZoom, maxZoom: mapTiles.maximumZoom });
+  const map = leaflet.map(ui.mapElement, { attributionControl: false, minZoom: mapTiles.minimumZoom, maxZoom: mapTiles.maximumZoom, preferCanvas: true });
   const trails: Fix[][] = trailDefinitions.map(() => []);
   const lines = trailDefinitions.map((trail) => leaflet.polyline([], { color: trail.color }).addTo(map));
-  const markers = trailDefinitions.map(() => leaflet.circleMarker([0, 0], { radius: 6 }));
+  const pointGroups = trailDefinitions.map(() => leaflet.layerGroup().addTo(map));
+  const pointMarkers: leaflet.CircleMarker[][] = trailDefinitions.map(() => []);
   let origin: Fix | undefined;
   let fallback = false;
   const draw = (): void => {
@@ -62,8 +64,9 @@ function createRenderer(ui: MapUi) {
     const fix = readFix(value);
     const trail = trails[index];
     const line = lines[index];
-    const marker = markers[index];
-    if (!fix || !trail || !line || !marker) return;
+    const group = pointGroups[index];
+    const markers = pointMarkers[index];
+    if (!fix || !trail || !line || !group || !markers) return;
     trails[index] = appendFix(trail, fix);
     if (!origin) {
       origin = fix;
@@ -71,7 +74,12 @@ function createRenderer(ui: MapUi) {
       map.setView([fix.latitude, fix.longitude], initialZoom);
     }
     line.setLatLngs(trails[index].map((point) => [point.latitude, point.longitude]));
-    marker.setLatLng([fix.latitude, fix.longitude]).setStyle({ color: statusColor(fix.status), fillColor: statusColor(fix.status), fillOpacity: 1 }).addTo(map);
+    const color = statusColor(fix.status);
+    markers.push(leaflet.circleMarker([fix.latitude, fix.longitude], { radius: 3, color, fillColor: color, fillOpacity: 1 }).addTo(group));
+    if (markers.length > maximumTrailPoints) {
+      const oldest = markers.shift();
+      if (oldest) group.removeLayer(oldest);
+    }
     if (fallback) draw();
   };
   const resize = (): void => {
@@ -87,6 +95,7 @@ function createRenderer(ui: MapUi) {
     ui.select.removeEventListener("change", chooseLayer);
     window.removeEventListener("resize", resize);
     layers.dispose();
+    pointGroups.forEach((group) => { group.clearLayers(); });
     map.remove();
   } };
 }
