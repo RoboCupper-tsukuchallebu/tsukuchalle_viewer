@@ -1,0 +1,32 @@
+# nginx の公式イメージが、起動時に定義済みの環境変数だけを置き換える（$http_upgrade などの nginx の変数は残る）。
+# VIEWER_PORT: 待ち受けるポート / VIEWER_BRIDGE_PORT: 同じホストの foxglove_bridge のポート
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+server {
+    listen ${VIEWER_PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # ページと同じ origin の /ws を、同じホストの foxglove_bridge に中継する。
+    location = /ws {
+        proxy_pass http://127.0.0.1:${VIEWER_BRIDGE_PORT};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+        # 副プロトコル foxglove.sdk.v1 を bridge に渡す。bridge の選んだ値は nginx が自動でブラウザに返す。
+        proxy_set_header Sec-WebSocket-Protocol $http_sec_websocket_protocol;
+        proxy_set_header Host $host;
+        proxy_read_timeout 1h;
+        proxy_send_timeout 1h;
+        proxy_buffering off;
+    }
+}

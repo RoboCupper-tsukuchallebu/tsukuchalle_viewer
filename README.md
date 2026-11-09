@@ -1,3 +1,81 @@
 # tsukuchalle_viewer
 
-つくちゃれ部のロボットを、ブラウザから見る・操作するための Web ビューアです（Foxglove WebSocket `foxglove.sdk.v1` + Three.js）。仕様は Issue を見てください。
+つくちゃれ部のロボットを、ブラウザから見る・操作するための Web ビューアです。X13 の foxglove_bridge（Foxglove WebSocket、副プロトコル `foxglove.sdk.v1`）につなぎ、Three.js で描きます。仕様は [Issue #1](../../issues/1) にあります。
+
+今できること（PR 1 の土台）:
+
+- `foxglove.sdk.v1` の薄いクライアント（`src/connection/`）。申し出る副プロトコルは `foxglove.sdk.v1` だけ。切れたら 1 秒から間隔を延ばして（最大 10 秒）つなぎ直し、トピックは名前で購読し直す。
+- cdr（ROS 2）と json のデコード（`src/decoding/`）。トピックごとの最新値と受信時刻を持つ store（`src/store/`）。
+- 上部バー（接続の状態、capabilities）と、5 つのタブの枠とチャネルの一覧。停止・一時停止・書き込みのスイッチは場所だけあり、まだ押せない。
+
+## 安全について
+
+- **画面の停止は非常停止ではありません。** 通信が切れると届きません。ロボットの非常停止スイッチの代わりにしないでください。
+- ロボットを動かす操作（PR 7 以降）は、書き込みのスイッチを画面で有効にしたときだけ使え、送る前に必ず確認の画面を出します。スイッチは開き直すと無効に戻ります。
+- 画面のスイッチは防護ではありません。本当の制限は bridge の設定で行います。
+
+## 接続先
+
+WebSocket の接続先は、ページを配ったホストの `/ws`（`ws:` か `wss:` はページに合わせる）です。nginx が同じホストの foxglove_bridge に中継します。接続先をコードに書きません。
+
+- 閲覧用の接続先は、URL の `?ws=ws://ホスト:ポート` で変えられます（`ws:` と `wss:` だけ）。変えたときは上部バーに接続先が出ます。
+- 閲覧用の接続先を変えたときは、書き込み用の接続は作りません。書き込み用の接続先は URL でも画面でも変えられません。
+
+## 開発
+
+Node 24 が要ります。
+
+```sh
+npm ci
+npm run dev        # http://localhost:5173
+npm test           # Vitest
+npm run typecheck # tsc --noEmit
+npm run lint
+npm run build      # tsc と vite build
+```
+
+`vite dev` から bridge へ直接つなぐときは、commit しない `.env.local` に中継先を書きます。
+
+```sh
+VIEWER_DEV_BRIDGE_URL=ws://localhost:8765
+```
+
+試験は、`ws` で立てた偽の `foxglove.sdk.v1` サーバーとの接続試験（`test/foxgloveClient.test.ts`）、op とバイナリのフレーム、CDR の単体試験、happy-dom による画面の試験です。
+
+## 配信（X13）
+
+ビューアは Docker の nginx から配ります。ビルドはビルド機で行い、イメージをロボット PC に送ります（Mac の Docker は使いません）。
+
+```sh
+# ビルド機で、コミット済みのクローンの中から
+scripts/deploy.sh <ロボットの SSH 先>
+```
+
+ロボット PC の `~/tsukuchalle_viewer/` に `.env`（`.env.example` を写す）を置いて起動します。
+
+```sh
+cd ~/tsukuchalle_viewer
+docker compose up -d
+```
+
+| 変数 | 既定 | 意味 |
+|---|---|---|
+| `VIEWER_PORT` | 8080 | ビューアが待ち受けるポート |
+| `VIEWER_BRIDGE_PORT` | 8765 | `/ws` の中継先。同じホストの foxglove_bridge のポート |
+
+`compose.yaml` は `network_mode: host` です。ブラウザからは `http://<ロボット PC>:<VIEWER_PORT>/` を開きます（Tailscale 越し）。
+
+## CI
+
+`.github/workflows/ci.yml`
+
+- `build`（必須）: `npm ci`、`tsc --noEmit`、`eslint .`、`vitest run`、`vite build`。
+- `docker`（必須ではない）: イメージを作って起動し、ページが返ることと、`/ws` が `Upgrade` と `Sec-WebSocket-Protocol` を通して偽の bridge に中継されることを確かめる。
+
+## ライセンス
+
+未定（仕様 7.2 の 5 で MIT を提案中）。
+
+## 公開リポジトリです
+
+IP アドレス、ホスト名、メールアドレス、緯度経度などの位置、個人の情報を、コード・文書・commit・PR に書かないでください。

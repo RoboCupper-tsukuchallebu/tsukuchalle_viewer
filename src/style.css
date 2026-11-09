@@ -1,0 +1,58 @@
+:root {
+  color-scheme: light dark;
+  --background: #f6f7f9;
+  --surface: #ffffff;
+  --text: #1c2026;
+  --muted: #5d6673;
+  --border: #d3d8df;
+  --accent: #1f6feb;
+  --danger: #c62828;
+  --warning: #b26a00;
+  --write-enabled: #fff1d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #15181d;
+    --surface: #1e232a;
+    --text: #e6e9ee;
+    --muted: #9aa4b2;
+    --border: #3a424d;
+    --accent: #5b9dff;
+    --danger: #ff6b6b;
+    --warning: #ffb454;
+    --write-enabled: #4a3a14;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--background); color: var(--text); font: 14px/1.5 system-ui, sans-serif; }
+#app { display: flex; flex-direction: column; min-height: 100vh; }
+
+.top-bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border); }
+.top-bar.write-enabled { background: var(--write-enabled); }
+.top-bar-connections { flex: 1 1 320px; min-width: 0; }
+.connection { margin: 0; overflow-wrap: anywhere; }
+.connection-connected { color: var(--text); }
+.connection-reconnecting, .connection-connecting { color: var(--warning); }
+.connection-closed, .connection-idle, .connection-unavailable { color: var(--muted); }
+.top-bar-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.top-bar-button { min-width: 88px; min-height: 44px; font-weight: 700; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
+.top-bar-stop:not(:disabled) { background: var(--danger); color: #fff; }
+.top-bar-button:disabled { opacity: 0.6; }
+.top-bar-notice { flex: 1 1 100%; margin: 0; font-size: 12px; color: var(--muted); }
+
+.tab-list { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 16px 0; }
+.tab-button { padding: 8px 14px; border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; background: var(--surface); color: var(--muted); }
+.tab-button[aria-selected="true"] { color: var(--text); border-color: var(--accent); font-weight: 700; }
+.tabs { flex: 1; display: flex; flex-direction: column; }
+.tab-content { flex: 1; padding: 16px; background: var(--surface); border-top: 1px solid var(--border); overflow-x: auto; }
+.placeholder { color: var(--muted); }
+
+.channel-table { border-collapse: collapse; width: 100%; }
+.channel-table th, .channel-table td { padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: left; overflow-wrap: anywhere; }
+.undecodable { color: var(--muted); }
+
+.confirm-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 16px; background: rgb(0 0 0 / 0.5); }
+.confirm-dialog { width: min(480px, 100%); padding: 16px; background: var(--surface); border-radius: 8px; border: 1px solid var(--border); }
+.confirm-warning { padding: 8px; font-weight: 700; color: var(--warning); border: 1px solid var(--warning); border-radius: 4px; }
+.confirm-dialog button { min-height: 44px; margin-right: 8px; }
+.confirm-button { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 0 16px; }
