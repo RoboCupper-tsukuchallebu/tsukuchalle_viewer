@@ -21,6 +21,7 @@ export const topicNames = {
   followStatus: "/lightnav/follow_status",
   obstacleStatus: "/lightnav/obstacle_status",
   diagnostics: "/diagnostics",
+  lowBattery: "/system/low_battery",
   bridgeSystemInformation: "/foxglove_bridge/sysinfo",
   // 地図
   rtkFix: "/rtk/fix_all",
