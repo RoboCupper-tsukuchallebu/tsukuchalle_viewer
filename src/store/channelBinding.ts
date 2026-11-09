@@ -36,6 +36,9 @@ export function bindClientToTopicStore(client: FoxgloveClient, topicStore: Topic
     if (!channel) {
       return;
     }
+    if (channel.schemaName === "sensor_msgs/msg/PointCloud2") {
+      return;
+    }
     const decoder = decoderFor(channel);
     if (!decoder.isDecodable) {
       topicStore.recordDecodeError(message.topic, decoder.reason);

@@ -29,6 +29,10 @@ export const topicNames = {
   missionStatus: `${followWaypointsAction}/_action/status`,
 } as const;
 
+export const frameNames = { map: "map", robot: "base_link" } as const;
+
+export const defaultPointCloud = topicNames.alignedScan;
+
 export const serviceNames = {
   sendGoal: `${followWaypointsAction}/_action/send_goal`,
   getResult: `${followWaypointsAction}/_action/get_result`,
@@ -57,6 +61,10 @@ export const pointCloudLimits = {
 // 地図タイル（国土地理院の標準地図が既定。出典の表示が要る。仕様 3.4 節）
 export const mapTiles = {
   standardUrlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+  photoUrlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg",
+  osmUrlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  photoMinimumNativeZoom: 14,
+  photoMaximumNativeZoom: 18,
   minimumZoom: 9,
   maximumZoom: 18,
 } as const;
@@ -67,8 +75,11 @@ export const stopResponseTimeoutMs = 5000;
 export const staleThresholdMs = {
   /** 途中の動的な TF がこれより古いと waypoint を置けない。 */
   dynamicTransform: 1000,
+  /** 状態・diagnostics・sysinfo の受信間隔。 */
+  status: 5000,
 } as const;
 
 export const storageKeys = {
+  selected3dFrame: "tsukuchalle-viewer.selected3dFrame",
   selectedTab: "tsukuchalle-viewer.selectedTab",
 } as const;

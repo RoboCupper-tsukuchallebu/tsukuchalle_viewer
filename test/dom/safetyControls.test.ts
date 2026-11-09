@@ -160,7 +160,7 @@ describe("タブ", () => {
     const tabs = createTabs(context);
     await vi.waitFor(() => {
       expect(tabs.element.querySelector('[data-tab="map"]')?.getAttribute("aria-selected")).toBe("true");
-      expect(tabs.element.querySelector(".placeholder")).not.toBeNull();
+      expect(tabs.element.querySelector(".map-panel")).not.toBeNull();
     });
 
     // Assert
@@ -236,5 +236,123 @@ describe("確認の画面", () => {
 
     // Assert
     expect(document.querySelector(".confirm-warning")?.textContent).toBe("実行中の goal を打ち切って置き換えます");
+  });
+});
+
+describe("mission の操作", () => {
+  test("スイッチが無効なら送れず、有効にすると確認画面に件数と preempt が出る", async () => {
+    const { mountPanel } = await import("../../src/panels/waypoints/index.ts");
+    const { waypointStore } = await import("../../src/store/waypointStore.ts");
+    const context = createContext();
+    if (!context.connections.writing) throw new Error("writing missing");
+    vi.spyOn(context.connections.writing, "state", "get").mockReturnValue("connected");
+    const call = vi.spyOn(context.connections.writing, "callService");
+    const container = document.createElement("div"); document.body.append(container);
+    const dispose = mountPanel(container, context);
+    waypointStore.add(1, 2);
+    const send = [...container.querySelectorAll("button")].find((button) => button.textContent === "mission に送信");
+    expect(send?.disabled).toBe(true);
+    send?.click(); expect(call).not.toHaveBeenCalled();
+    context.writeGate.enable(); send?.click();
+    expect(document.querySelector("[role=dialog]")?.textContent).toContain("1 件");
+    expect(document.querySelector("[role=dialog]")?.textContent).toContain("preempt");
+    document.querySelector<HTMLButtonElement>('[data-role="cancel"]')?.click();
+    expect(call).not.toHaveBeenCalled();
+    waypointStore.remove(0); dispose();
+  });
+
+  test("承認後に goal と get_result を書き込み接続へ送り、結果を表示する", async () => {
+    const { mountPanel } = await import("../../src/panels/waypoints/index.ts");
+    const { waypointStore } = await import("../../src/store/waypointStore.ts");
+    const { actionRoot } = await import("../../src/control/missionClient.ts");
+    const { goalSchema, uuidDefinition, resultResponseSchema, resultResponse } = await import("../fixtures/missionCdr.ts");
+    const context = createContext(); const writing = context.connections.writing;
+    if (!writing) throw new Error("writing missing");
+    vi.spyOn(writing, "state", "get").mockReturnValue("connected");
+    const description = (schema: string) => ({ encoding: "cdr", schemaName: "test", schema });
+    vi.spyOn(writing, "services", "get").mockReturnValue(new Map([
+      [1, { id: 1, name: `${actionRoot}/send_goal`, type: "goal", request: description(goalSchema), response: description("bool accepted") }],
+      [2, { id: 2, name: `${actionRoot}/get_result`, type: "result", request: description(uuidDefinition), response: description(resultResponseSchema) }],
+    ]));
+    const call = vi.spyOn(writing, "callService").mockImplementation((id) => Promise.resolve({ encoding: "cdr", payload: id === 1 ? new Uint8Array([0, 1, 0, 0, 1]) : resultResponse }));
+    const viewingCall = vi.spyOn(context.connections.viewing, "callService");
+    const container = document.createElement("div"); document.body.append(container);
+    const dispose = mountPanel(container, context); waypointStore.add(1, 2); context.writeGate.enable();
+    [...container.querySelectorAll("button")].find((button) => button.textContent === "mission に送信")?.click();
+    expect(call).not.toHaveBeenCalled();
+    document.querySelector<HTMLButtonElement>('[data-role="confirm"]')?.click();
+    await vi.waitFor(() => { expect(call).toHaveBeenCalledTimes(2); });
+    await vi.waitFor(() => { expect(container.textContent).toContain("fail"); });
+    expect(viewingCall).not.toHaveBeenCalled();
+    waypointStore.remove(0); dispose();
+  });
+
+  test("preempt 後に前の goal の結果が届いても新しい goal の表示を保つ", async () => {
+    const { mountPanel } = await import("../../src/panels/waypoints/index.ts");
+    const { waypointStore } = await import("../../src/store/waypointStore.ts");
+    const { actionRoot } = await import("../../src/control/missionClient.ts");
+    const { goalSchema, uuidDefinition, resultResponseSchema, resultResponse } = await import("../fixtures/missionCdr.ts");
+    const context = createContext();
+    const writing = context.connections.writing;
+    if (!writing) throw new Error("writing missing");
+    vi.spyOn(writing, "state", "get").mockReturnValue("connected");
+    const description = (schema: string) => ({ encoding: "cdr", schemaName: "test", schema });
+    vi.spyOn(writing, "services", "get").mockReturnValue(new Map([
+      [1, { id: 1, name: `${actionRoot}/send_goal`, type: "goal", request: description(goalSchema), response: description("bool accepted") }],
+      [2, { id: 2, name: `${actionRoot}/get_result`, type: "result", request: description(uuidDefinition), response: description(resultResponseSchema) }],
+    ]));
+    let resolveFirst: (value: { encoding: string; payload: Uint8Array }) => void = () => {};
+    const firstResult = new Promise<{ encoding: string; payload: Uint8Array }>((resolve) => { resolveFirst = resolve; });
+    const call = vi.spyOn(writing, "callService").mockImplementation((id) => {
+      if (id === 1) return Promise.resolve({ encoding: "cdr", payload: new Uint8Array([0, 1, 0, 0, 1]) });
+      if (call.mock.calls.filter(([serviceId]) => serviceId === 2).length === 1) return firstResult;
+      return new Promise(() => {});
+    });
+    const container = document.createElement("div");
+    document.body.append(container);
+    const dispose = mountPanel(container, context);
+    waypointStore.add(1, 2);
+    context.writeGate.enable();
+    const send = [...container.querySelectorAll("button")].find((button) => button.textContent === "mission に送信");
+    send?.click();
+    document.querySelector<HTMLButtonElement>('[data-role="confirm"]')?.click();
+    await vi.waitFor(() => { expect(call).toHaveBeenCalledTimes(2); });
+    send?.click();
+    document.querySelector<HTMLButtonElement>('[data-role="confirm"]')?.click();
+    await vi.waitFor(() => { expect(call).toHaveBeenCalledTimes(4); });
+    resolveFirst({ encoding: "cdr", payload: resultResponse });
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
+    expect(container.textContent).toContain("goal を受理しました。結果を待っています");
+    expect(container.textContent).not.toContain("fail");
+    waypointStore.remove(0);
+    dispose();
+  });
+
+  test("書き込みが無効でも停止を送る", async () => {
+    const { startMissionControls } = await import("../../src/control/mission.ts");
+    const { actionRoot } = await import("../../src/control/missionClient.ts");
+    const { cancelSchema, cancelResponseSchema, cancelResponse, cancelRequest } = await import("../fixtures/missionCdr.ts");
+    const context = createContext(); const writing = context.connections.writing;
+    if (!writing) throw new Error("writing missing");
+    vi.spyOn(writing, "state", "get").mockReturnValue("connected");
+    vi.spyOn(writing, "services", "get").mockReturnValue(new Map([[1, { id: 1, name: `${actionRoot}/cancel_goal`, type: "action_msgs/srv/CancelGoal", request: { encoding: "cdr", schemaName: "request", schema: cancelSchema }, response: { encoding: "cdr", schemaName: "response", schema: cancelResponseSchema } }]]));
+    const call = vi.spyOn(writing, "callService").mockResolvedValue({ encoding: "cdr", payload: cancelResponse });
+    const topBar = createTopBar({ connections: context.connections, writeGate: context.writeGate });
+    document.body.append(topBar.element); startMissionControls({ topBar, connections: context.connections, writeGate: context.writeGate });
+    expect(context.writeGate.isEnabled).toBe(false);
+    topBar.element.querySelector<HTMLButtonElement>('[data-control="stop"]')?.click();
+    await vi.waitFor(() => { expect(call).toHaveBeenCalledWith(1, cancelRequest); });
+    await vi.waitFor(() => { expect(topBar.element.textContent).toContain("取り消す goal がありません"); });
+    topBar.dispose();
+  });
+
+  test("書き込み接続が null なら送信を使えない", async () => {
+    const { mountPanel } = await import("../../src/panels/waypoints/index.ts");
+    const { waypointStore } = await import("../../src/store/waypointStore.ts");
+    const context = createContext(); context.connections.writing = null; context.writeGate.enable();
+    const container = document.createElement("div"); document.body.append(container);
+    const dispose = mountPanel(container, context); waypointStore.add(1, 2);
+    expect([...container.querySelectorAll("button")].find((button) => button.textContent === "mission に送信")?.disabled).toBe(true);
+    waypointStore.remove(0); dispose();
   });
 });

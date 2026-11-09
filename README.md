@@ -94,3 +94,27 @@ docker compose up -d
 ## 公開リポジトリです
 
 IP アドレス、ホスト名、メールアドレス、緯度経度などの位置、個人の情報を、コード・文書・commit・PR に書かないでください。
+
+### 3D 表示
+
+3D タブでは TF を使って点群、保存地図、軌跡、走行経路とロボットを表示します。表示フレーム、点数の上限、保存地図と軌跡のトピックを変更できます。既定の点群は aligned_scan です。velodyne は必要なときだけ有効にしてください（約 1.5 MB × 10 Hz）。地面のクリックは map 座標に変換され、TF が不足または古い場合は理由を表示します。
+
+PR 7 からは `src/panels/3d/viewApi.ts` の `onGroundClick(listener: (point: { x: number; y: number }) => void): () => void`、`onGroundClickRejected(listener: (reason: string) => void): () => void`、`addOverlay(object: Object3D): () => void` を import できます。返り値はいずれも登録を解除する関数です。クリックは map 座標の x・y で、ロボットの z の高さにある水平面との交点です。必要な TF がない場合や動的 TF が古い場合は配置できず、理由が通知されます。オーバーレイはパネルを開き直しても再び追加されます。
+
+`addOverlay` に渡す物は **map 座標**で置いてください。パネルが map から表示フレームへの変換を掛けるので、表示フレームが odom や base_link でも印は同じ場所に出ます。map から表示フレームへの TF が無いときは隠れます。
+
+ロボットの位置は `getRobotPoseInMap(): RobotPoseInMap` で取れます。型は `{ isAvailable: true; x: number; y: number; z: number; yawRadians: number } | { isAvailable: false; reason: string }` で、map → base_link の TF から求めます。TF が無い、動的 TF が古い、3D パネルが開かれていないときは `isAvailable: false` と理由を返します（waypoint の確認の画面で、ロボットから最初の waypoint までの距離を出すために使います）。
+
+### TF の購読
+
+TF の購読はアプリ起動時にストアが保持します。3D タブを閉じても map 座標のロボット姿勢を参照できるようにするためです。動的 TF の古さはブラウザでの受信時刻から判断します。3D パネルも表示更新のために同じトピックを購読しますが、接続側が購読を共有します。
+
+### Waypoint と mission
+
+3D の地面をクリックすると map 座標の waypoint が追加されます。一覧で到達半径（0 は mission の既定値）、順序、削除を編集できます。書き込みスイッチを有効にし、「mission に送信」から内容と注意を確認して送信します。スイッチは再読み込みすると無効に戻ります。確認画面では Enter で送信されません。
+
+停止・一時停止は全タブ共通の上部バーにあり、書き込みスイッチが無効でも使えます。停止は非常停止の代わりにはなりません。再開には確認が必要です。接続が切れている場合は操作できません。閲覧先を変更した場合、書き込み用接続は作られません。ロボットを動かす操作には確認画面を出し、書き込みは既定で無効とします。
+
+#### lightnav_sim で停止の応答時間を測る
+
+lightnav_sim と書き込み用 bridge を起動し、点群を購読したまま waypoint を送信します。受理されて get_result を待っている間に、ブラウザの開発者ツールの WebSocket フレームで cancel_goal の要求送信から対応する応答までの時間を測ります。mission を再開して同じ条件で 10 回繰り返し、各回の時間、中央値、最大値を記録します。目安は 1 秒以内です。同じ待機中に一時停止も応答すること、goal が無い停止で ERROR_REJECTED と空の一覧が返ることも確認します。

@@ -1,17 +1,29 @@
+import { topicNames } from "../../config.ts";
+import type { FoxgloveClient } from "../../connection/foxgloveClient.ts";
 import type { TopBar } from "../../layout/topBar.ts";
+import type { ChannelBinding } from "../../store/channelBinding.ts";
 import type { DiagnosticsStore } from "../../store/diagnosticsStore.ts";
 import type { TopicStore } from "../../store/topicStore.ts";
+import { isSchemaMissing, localizationSummary } from "./statusData.ts";
+import { subscribeAvailable } from "./subscriptions.ts";
+import "./status.css";
 
-export type TopBarStatusContext = {
-  topBar: TopBar;
-  topicStore: TopicStore;
-  diagnosticsStore: DiagnosticsStore;
-};
+export type TopBarStatusContext = { topBar: TopBar; topicStore: TopicStore; diagnosticsStore: DiagnosticsStore; viewing: FoxgloveClient; channelBinding: ChannelBinding };
 
-/**
- * ページを開いたときに 1 回だけ呼ばれる。PR 3 がここを埋める（このフォルダは PR 3 の持ち物）。
- * 自己位置推定の状態を topBar.localizationStatusSlot に出す。状態のタブを閉じていても出し続けるため、パネルではなくここで行う。
- */
-export function startTopBarStatus(_context: TopBarStatusContext): void {
-  // PR 1 では何もしない。
+export function startTopBarStatus({ topBar, topicStore, viewing, channelBinding }: TopBarStatusContext): () => void {
+  const render = () => {
+    const channel = [...viewing.channels.values()].find((item) => item.topic === topicNames.localizationStatus);
+    const missingSchema = channel && isSchemaMissing(channel);
+    const summary = missingSchema ? { text: "自己位置: 型が bridge に無い（lightnav_msgs 未導入）", level: "unknown" } : localizationSummary(topicStore.get(topicNames.localizationStatus));
+    topBar.localizationStatusSlot.textContent = summary.text;
+    topBar.localizationStatusSlot.dataset["level"] = summary.level;
+  };
+  const stopTopic = topicStore.subscribe(topicNames.localizationStatus, render);
+  const stopSubscription = subscribeAvailable(viewing, channelBinding, [topicNames.localizationStatus], render);
+  const timer = setInterval(render, 1000);
+  return () => {
+    stopTopic();
+    stopSubscription();
+    clearInterval(timer);
+  };
 }
