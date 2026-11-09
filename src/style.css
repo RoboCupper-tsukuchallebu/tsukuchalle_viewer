@@ -56,3 +56,9 @@ body { margin: 0; background: var(--background); color: var(--text); font: 14px/
 .confirm-warning { padding: 8px; font-weight: 700; color: var(--warning); border: 1px solid var(--warning); border-radius: 4px; }
 .confirm-dialog button { min-height: 44px; margin-right: 8px; }
 .confirm-button { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 0 16px; }
+
+.satellites-panel { min-width: 0; overflow-wrap: anywhere; }
+.satellites-sky-plot { display: block; width: 100%; max-width: 420px; }
+.satellites-signal-row { overflow-wrap: anywhere; }
+.satellites-bar { display: block; width: 100%; height: 12px; }
+.satellites-table { table-layout: fixed; }
