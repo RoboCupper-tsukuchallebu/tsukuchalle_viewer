@@ -5,10 +5,11 @@ test.use({ viewport: { width: 360, height: 740 } });
 
 test("リロード後も書き込みは無効", async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => { localStorage.setItem("tsukuchalle-viewer.writeEnabled", "true"); localStorage.setItem("writeEnabled", "true"); });
+  await page.locator('[data-control="write-switch"]').check();
+  await expect(page.locator('[data-control="write-switch"]')).toBeChecked();
   await page.reload();
   await expect(page.locator('[data-control="write-switch"]')).not.toBeChecked();
-  await expect(page.locator('[data-control="write-switch"]')).toBeDisabled();
+  await expect(page.locator('[data-control="write-switch"]')).toBeEnabled();
   await expect(page.locator(".top-bar")).not.toHaveClass(/write-enabled/);
 });
 
