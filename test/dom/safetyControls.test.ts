@@ -160,7 +160,7 @@ describe("タブ", () => {
     const tabs = createTabs(context);
     await vi.waitFor(() => {
       expect(tabs.element.querySelector('[data-tab="map"]')?.getAttribute("aria-selected")).toBe("true");
-      expect(tabs.element.querySelector(".placeholder")).not.toBeNull();
+      expect(tabs.element.querySelector(".map-panel")).not.toBeNull();
     });
 
     // Assert

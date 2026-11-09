@@ -1,0 +1,7 @@
+.map-panel { min-width: 0; }
+.map-legend { margin: 8px 0; overflow-wrap: anywhere; }
+.map-stage { position: relative; height: 420px; max-width: 100%; background: #eee; color: #222; overflow: hidden; isolation: isolate; }
+.map-canvas, .map-grid { width: 100%; height: 100%; }
+.map-canvas[hidden], .map-grid[hidden], .map-wait[hidden] { display: none; }
+.map-wait { position: absolute; z-index: 2; top: 45%; left: 0; width: 100%; text-align: center; pointer-events: none; }
+.map-attribution { position: absolute; z-index: 2; right: 0; bottom: 0; background: white; padding: 2px 5px; font-size: 11px; }
