@@ -2,6 +2,7 @@ import { BufferGeometry, Float32BufferAttribute, Group, Line, LineBasicMaterial,
 import { staleThresholdMs, topicNames } from "../../config.ts";
 import { requestConfirmation } from "../../control/confirmDialog.ts";
 import { actionRoot, createGoal, MissionClient, record } from "../../control/missionClient.ts";
+import { missionResultText, missionFeedbackText, missionStatusText } from "../../control/missionResultText.ts";
 import type { MountPanel } from "../../layout/panelContext.ts";
 import { waypointStore } from "../../store/waypointStore.ts";
 import { addOverlay, getRobotPoseInMap, onGroundClick, onGroundClickRejected } from "../3d/viewApi.ts";
@@ -19,10 +20,10 @@ export const mountPanel: MountPanel = (container, context) => {
   const resultListener = (message: string) => { result.textContent = message; }; resultListeners.add(resultListener);
   const feedback = document.createElement("p");
   const previousFeedback = context.topicStore.get(`${actionRoot}/feedback`);
-  if (previousFeedback) feedback.textContent = `feedback: ${JSON.stringify(previousFeedback.value)}`;
+  if (previousFeedback) feedback.textContent = missionFeedbackText(previousFeedback.value);
   const status = document.createElement("p");
   const previousStatus = context.topicStore.get(`${actionRoot}/status`);
-  if (previousStatus) status.textContent = `status: ${JSON.stringify(previousStatus.value)}`;
+  if (previousStatus) status.textContent = missionStatusText(previousStatus.value);
   container.append(heading, hint, list, send, result, feedback, status);
   const client = new MissionClient(context.connections.writing);
   const overlay = new Group(); const releaseOverlay = addOverlay(overlay);
@@ -48,7 +49,7 @@ export const mountPanel: MountPanel = (container, context) => {
   if (context.connections.writing) {
     releases.push(context.connections.writing.on("stateChanged", render));
   }
-  releases.push(context.topicStore.subscribe(`${actionRoot}/feedback`, (entry) => { feedback.textContent = `feedback: ${JSON.stringify(entry.value)}`; }), context.topicStore.subscribe(`${actionRoot}/status`, (entry) => { status.textContent = `status: ${JSON.stringify(entry.value)}`; }));
+  releases.push(context.topicStore.subscribe(`${actionRoot}/feedback`, (entry) => { feedback.textContent = missionFeedbackText(entry.value); }), context.topicStore.subscribe(`${actionRoot}/status`, (entry) => { status.textContent = missionStatusText(entry.value); }));
   const canSend = () => context.writeGate.isEnabled && context.connections.writing?.state === "connected";
   send.addEventListener("click", () => { void (async () => {
     if (!canSend()) return;
@@ -63,7 +64,7 @@ export const mountPanel: MountPanel = (container, context) => {
     if (localization !== 1 || localizationAge === undefined || localizationAge > staleThresholdMs.status) warnings.push("自己位置が TRACKING ではないか、情報が古くなっています。");
     const approved = await requestConfirmation({ title: "waypoint の送信", lines: [`${points.length} 件、map 座標`, `最初: ${first.x}, ${first.y} / 最後: ${last.x}, ${last.y}`, `自己位置: ${localization === 1 ? "TRACKING" : "TRACKING 以外または不明"}`, `最初までの距離: ${pose.isAvailable ? `${Math.hypot(first.x - pose.x, first.y - pose.y).toFixed(2)} m` : `不明（${pose.reason}）`}`], warnings, confirmLabel: "送信" });
     if (!approved || !canSend()) return;
-    try { const response = record(await client.sendGoal(goal)); if (response["accepted"] !== true) { setMissionResult("goal は拒否されました"); return; } setMissionResult("goal を受理しました。結果を待っています"); try { const responseResult = record(await client.getResult(goal.goal_id)); setMissionResult(`結果: ${JSON.stringify(responseResult)}`); } catch (error) { setMissionResult(`結果は分かりません: ${String(error)}`); } } catch (error) { setMissionResult(`送信失敗: ${String(error)}`); }
+    try { const response = record(await client.sendGoal(goal)); if (response["accepted"] !== true) { setMissionResult("goal は拒否されました"); return; } setMissionResult("goal を受理しました。結果を待っています"); try { const responseResult = record(await client.getResult(goal.goal_id)); setMissionResult(missionResultText(responseResult)); } catch { setMissionResult("接続が切れたため結果は分かりません"); } } catch (error) { setMissionResult(`送信失敗: ${String(error)}`); }
   })(); });
   render();
   return () => { releases.forEach((release) => { release(); }); clearOverlay(); releaseOverlay(); resultListeners.delete(resultListener); container.replaceChildren(); };

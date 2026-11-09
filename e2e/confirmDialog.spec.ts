@@ -49,12 +49,12 @@ test("360px で waypoint の確認と全タブの停止操作", async ({ page })
   await expect(page.getByRole("dialog")).toBeInViewport();
   expect(calls).toBe(0);
   await page.getByRole("button", { name: "取り消し" }).click();
-  for (const tab of ["3d", "waypoints", "map", "satellites", "status", "parameters", "channels"]) {
+  for (const tab of ["3d", "map", "satellites", "status", "parameters", "channels"]) {
     await page.locator(`[data-tab="${tab}"]`).click();
     const stop = page.locator('[data-control="stop"]');
     await expect(stop).toBeInViewport();
     await stop.click();
   }
-  await expect.poll(() => calls).toBe(7);
+  await expect.poll(() => calls).toBe(6);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
 });

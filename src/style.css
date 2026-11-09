@@ -67,3 +67,5 @@ body { margin: 0; background: var(--background); color: var(--text); font: 14px/
 .panel-waypoints { min-width: 0; overflow-wrap: anywhere; }
 .panel-waypoints input[type="number"] { width: 5rem; max-width: 100%; }
 .panel-waypoints li { margin-bottom: 0.5rem; }
+
+.mission-control-notice.is-error { color: var(--danger); }

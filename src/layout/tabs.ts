@@ -29,7 +29,6 @@ async function loadThreeDimensionalTab(): Promise<MountPanel> {
 
 export const tabDefinitions: TabDefinition[] = [
   { id: "3d", label: "3D", load: loadThreeDimensionalTab },
-  { id: "waypoints", label: "Waypoints", load: async () => (await import("../panels/waypoints/index.ts")).mountPanel },
   { id: "map", label: "地図", load: async () => (await import("../panels/map/index.ts")).mountPanel },
   { id: "satellites", label: "衛星", load: async () => (await import("../panels/satellites/index.ts")).mountPanel },
   { id: "status", label: "状態", load: async () => (await import("../panels/status/index.ts")).mountPanel },

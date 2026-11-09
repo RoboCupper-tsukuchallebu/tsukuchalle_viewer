@@ -13,7 +13,7 @@ export function startMissionControls({ topBar, connections, topicStore }: Missio
   notice.setAttribute("role", "status");
   topBar.element.append(notice);
   let paused = false;
-  const show = (message: string, failed = false) => { notice.textContent = message; notice.style.color = failed ? "red" : ""; };
+  const show = (message: string, failed = false) => { notice.textContent = message; notice.classList.toggle("is-error", failed); };
   const run = async (kind: "stop" | "pause" | "resume") => {
     try {
       if (kind === "resume" && !await requestConfirmation({ title: "mission を再開", lines: ["ロボットが動きます。"], confirmLabel: "再開" })) return;
@@ -35,6 +35,8 @@ export function startMissionControls({ topBar, connections, topicStore }: Missio
   };
   const update = () => {
     const available = connections.writing?.state === "connected";
+    if (!available && !notice.classList.contains("is-error")) notice.textContent = "書き込み接続がありません";
+    if (available && notice.textContent === "書き込み接続がありません") notice.textContent = "";
     topBar.setStopHandler(available ? () => { void run("stop"); } : undefined);
     topBar.setPauseHandler(available ? () => { void run(paused ? "resume" : "pause"); } : undefined);
     const button = topBar.element.querySelector<HTMLButtonElement>('[data-control="pause"]');
