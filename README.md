@@ -21,6 +21,12 @@
 - 閲覧用の接続先は、URL の `?ws=ws://ホスト:ポート` で変えられます（`ws:` と `wss:` だけ）。変えたときは上部バーに接続先が出ます。
 - 閲覧用の接続先を変えたときは、書き込み用の接続は作りません。書き込み用の接続先は URL でも画面でも変えられません。
 
+### MarkerArray
+
+3D タブのトピック一覧で MarkerArray の表示を切り替えられます。`/lightnav/controller/arc_candidates` は既定でオンです。対応 type は ARROW、CUBE、LINE_STRIP、LINE_LIST、SPHERE_LIST、TEXT_VIEW_FACING です。ADD は ns と id の組で置換し、DELETE と DELETEALL に対応します。lifetime が正なら期限後に削除し、0 なら保持します。更新は 100 ms ごと（最大 10 Hz）に反映します。
+
+各 marker の frame_id から表示フレームへの TF がない場合は非表示にし、status にフレーム名を表示します。空の frame_id も不正として非表示にし、status に表示します。線幅（scale.x）と頂点ごとの alpha（colors）は反映されません。
+
 ## 開発
 
 Node 24 が要ります。

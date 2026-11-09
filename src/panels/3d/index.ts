@@ -63,7 +63,6 @@ export const mountPanel: MountPanel = (container, context) => {
     });
   };
   const frameSelection = createFrameSelection(select, transformTree, refresh);
-  releases.push(createMarkerController(form.root, scene, context, transformTree, () => frameSelection.selectedFrame));
   const clouds = createCloudController(scene, context, form, report, refresh);
   releases.push(subscribeTransforms(context, transformTree, report, () => { frameSelection.update(); }));
   frameSelection.update();
@@ -88,6 +87,7 @@ export const mountPanel: MountPanel = (container, context) => {
       report,
     ),
   );
+  releases.push(createMarkerController(form.root, scene, context, transformTree, () => frameSelection.selectedFrame, report));
   const stopRendering = setup.startRendering();
   return () => {
     stopRendering();
