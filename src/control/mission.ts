@@ -6,6 +6,16 @@ import type { TopicStore } from "../store/topicStore.ts";
 import { actionRoot, MissionClient, record } from "./missionClient.ts";
 
 export type MissionControlsContext = { topBar: TopBar; connections: ViewerConnections; writeGate: WriteGate; topicStore?: TopicStore };
+type ControlKind = "stop" | "pause" | "resume";
+
+function cancelMessage(result: Record<string, unknown>): string {
+  const goals = result["goals_canceling"];
+  const count = Array.isArray(goals) ? goals.length : 0;
+  if (result["return_code"] === 1 && count === 0) return "取り消す goal がありません";
+  if (result["return_code"] === 0 && count > 0) return "取り消しを受け付けました";
+  return "停止に失敗しました";
+}
+
 export function startMissionControls({ topBar, connections, topicStore }: MissionControlsContext): void {
   const client = new MissionClient(connections.writing);
   const notice = document.createElement("p");
@@ -13,25 +23,9 @@ export function startMissionControls({ topBar, connections, topicStore }: Missio
   notice.setAttribute("role", "status");
   topBar.element.append(notice);
   let paused = false;
-  const show = (message: string, failed = false) => { notice.textContent = message; notice.classList.toggle("is-error", failed); };
-  const run = async (kind: "stop" | "pause" | "resume") => {
-    try {
-      if (kind === "resume" && !await requestConfirmation({ title: "mission を再開", lines: ["ロボットが動きます。"], confirmLabel: "再開" })) return;
-      if (kind === "stop") {
-        const result = record(await client.cancel());
-        const goals = result["goals_canceling"];
-        const count = Array.isArray(goals) ? goals.length : 0;
-        if (result["return_code"] === 1 && count === 0) show("取り消す goal がありません");
-        else if (result["return_code"] === 0 && count > 0) show("取り消しを受け付けました");
-        else show("停止に失敗しました", true);
-      } else {
-        const result = record(await client.trigger(kind));
-        if (result["success"] !== true) { show(`${kind}: ${(typeof result["message"] === "string" ? result["message"] : "失敗")}`, true); return; }
-        paused = kind === "pause";
-        show(`${paused ? "一時停止" : "再開"}: ${(typeof result["message"] === "string" ? result["message"] : "")}`);
-        update();
-      }
-    } catch (error) { show(`${kind}: ${error instanceof Error ? error.message : String(error)}`, true); }
+  const show = (message: string, failed = false) => {
+    notice.textContent = message;
+    notice.classList.toggle("is-error", failed);
   };
   const update = () => {
     const available = connections.writing?.state === "connected";
@@ -42,11 +36,42 @@ export function startMissionControls({ topBar, connections, topicStore }: Missio
     const button = topBar.element.querySelector<HTMLButtonElement>('[data-control="pause"]');
     if (button) button.textContent = paused ? "再開" : "一時停止";
   };
-  topicStore?.subscribe(`${actionRoot}/feedback`, (entry) => {
-    const state = record(record(entry.value)["feedback"])["state"];
-    if (state === "PAUSED") { paused = true; update(); }
-    else if (state === "FOLLOWING" || state === "PLANNING" || state === "IDLE") { paused = false; update(); }
+  const run = async (kind: ControlKind) => {
+    try {
+      if (kind === "resume" && !await requestConfirmation({ title: "mission を再開", lines: ["ロボットが動きます。"], confirmLabel: "再開" })) return;
+      if (kind === "stop") {
+        const message = cancelMessage(record(await client.cancel()));
+        show(message, message === "停止に失敗しました");
+        return;
+      }
+      const result = record(await client.trigger(kind));
+      const message = typeof result["message"] === "string" ? result["message"] : "";
+      if (result["success"] !== true) {
+        show(`${kind}: ${message || "失敗"}`, true);
+        return;
+      }
+      paused = kind === "pause";
+      show(`${paused ? "一時停止" : "再開"}: ${message}`);
+      update();
+    } catch (error) {
+      show(`${kind}: ${error instanceof Error ? error.message : String(error)}`, true);
+    }
+  };
+  subscribeFeedback(topicStore, (value) => {
+    paused = value;
+    update();
   });
   connections.writing?.on("stateChanged", update);
   update();
+}
+
+function subscribeFeedback(topicStore: TopicStore | undefined, setPaused: (value: boolean) => void): void {
+  topicStore?.subscribe(`${actionRoot}/feedback`, (entry) => {
+    const state = record(record(entry.value)["feedback"])["state"];
+    if (state === "PAUSED") {
+      setPaused(true);
+    } else if (state === "FOLLOWING" || state === "PLANNING" || state === "IDLE") {
+      setPaused(false);
+    }
+  });
 }

@@ -31,7 +31,6 @@ export function createTopBar({ connections, writeGate }: TopBarOptions): TopBar 
   const writeSwitch = createElement("input");
   writeSwitch.type = "checkbox";
   writeSwitch.dataset["control"] = "write-switch";
-  // 場所だけ確保する。有効にできるようにするのは PR 7。
   writeSwitch.disabled = connections.writing === null;
   writeSwitch.addEventListener("change", () => { if (writeSwitch.checked) writeGate.enable(); else writeGate.disable(); });
   writeSwitch.checked = writeGate.isEnabled;
