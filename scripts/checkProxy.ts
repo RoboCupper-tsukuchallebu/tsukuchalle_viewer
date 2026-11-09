@@ -24,11 +24,11 @@ function startBridge(port: number, control: boolean): Promise<WebSocketServer> {
 }
 const viewing = await startBridge(bridgePort, false);
 const writing = await startBridge(controlPort, true);
-async function connect(path: string, requestOrigin?: string, requestHost?: string): Promise<number> {
+async function connect(path: string, requestOrigin?: string, requestHost?: string, crossSite = false): Promise<number> {
   return new Promise((resolve, reject) => {
     const socket = new WebSocket(`ws://127.0.0.1:${viewerPort}${path}`, subprotocol, {
       ...(requestOrigin ? { origin: requestOrigin } : {}),
-      ...(requestHost ? { headers: { Host: requestHost } } : {}),
+      ...((requestHost || crossSite) ? { headers: { ...(requestHost ? { Host: requestHost } : {}), ...(crossSite ? { "Sec-Fetch-Site": "cross-site" } : {}) } } : {}),
     });
     const timer = setTimeout(() => { socket.terminate(); reject(new Error("接続がタイムアウトしました")); }, 5000);
     socket.on("message", (message) => {
@@ -68,6 +68,7 @@ try {
   for (const [testOrigin, testHost] of [["http://invalid.example", host], [origin, "invalid.example"], [undefined, host]] as const) {
     if (await connect("/ws-control", testOrigin, testHost) !== 403 || countControlConnections() !== 1) throw new Error("許可リストによる拒否に失敗しました");
   }
+  if (await connect("/ws-control", origin, host, true) !== 403) throw new Error("cross-site の拒否に失敗しました");
   console.log("OK: /ws と /ws-control の中継および Host・Origin の拒否");
 } finally {
   manager.close();

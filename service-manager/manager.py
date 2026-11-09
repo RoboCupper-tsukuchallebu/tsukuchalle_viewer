@@ -84,7 +84,12 @@ class Manager:
             names = result.stdout.splitlines()
         if not names:
             return {"id": key, "running": False, "started_at": None, "image_tag": None}
-        details = json.loads(run(["docker", "inspect", names[0]]).stdout)[0]
+        details_list = json.loads(run(["docker", "inspect", *names]).stdout)
+        if not item.get("bag"):
+            details_list = [entry for entry in details_list if (entry["Config"].get("Labels") or {}).get("com.docker.compose.oneoff") != "True"]
+        if not details_list:
+            return {"id": key, "running": False, "started_at": None, "image_tag": None}
+        details = details_list[0]
         running = details["State"]["Running"]
         if "mode" in item:
             settings = details["Config"].get("Cmd") or []
