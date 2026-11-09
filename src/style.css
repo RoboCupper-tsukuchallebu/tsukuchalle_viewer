@@ -34,6 +34,8 @@ body { margin: 0; background: var(--background); color: var(--text); font: 14px/
 .connection-connected { color: var(--text); }
 .connection-reconnecting, .connection-connecting { color: var(--warning); }
 .connection-closed, .connection-idle, .connection-unavailable { color: var(--muted); }
+.top-bar-battery-warning { flex: 1 1 100%; min-width: 0; padding: 8px; border-radius: 6px; background: #a31818; color: #fff; font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+.top-bar-battery-warning[hidden] { display: none; }
 .top-bar-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .top-bar-button { min-width: 88px; min-height: 44px; font-weight: 700; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); }
 .top-bar-stop:not(:disabled) { background: var(--danger); color: #fff; }

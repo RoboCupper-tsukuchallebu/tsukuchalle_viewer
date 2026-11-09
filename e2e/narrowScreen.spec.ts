@@ -140,3 +140,62 @@ test("幅 360 px で障害物の表示を切り替えても停止操作が見え
   await obstacle.uncheck();
   await expectStopControlsReachable(page);
 });
+
+async function advertiseBattery(topic: string, channelId: number): Promise<void> {
+  server.sendJson({ op: "advertise", channels: [{ id: channelId, topic, encoding: "json", schemaName: "test", schema: "" }] });
+  await expect.poll(() => findSubscription(channelId)).toBeDefined();
+}
+
+function sendBattery(channelId: number, value: unknown): void {
+  const subscription = findSubscription(channelId);
+  if (!subscription) throw new Error("電池情報の購読が見つかりません");
+  const header = Buffer.alloc(13);
+  header.writeUInt8(1, 0);
+  header.writeUInt32LE(subscription.id, 1);
+  server.sendBinary(Buffer.concat([header, Buffer.from(JSON.stringify(value))]));
+}
+
+function batteryDiagnostic(level: number): unknown {
+  return { status: [{ name: "host: battery", level, message: "4% Discharging", values: [{ key: "capacity_percent", value: "4" }, { key: "status", value: "Discharging" }] }] };
+}
+
+test("電池警告は全タブで表示され停止操作を隠さない", async ({ page }) => {
+  // Arrange
+  await openViewerConnectedToFakeBridge(page, "channels");
+  await advertiseBattery("/diagnostics", 300);
+  // Act
+  sendBattery(300, batteryDiagnostic(2));
+  // Assert
+  for (const definition of tabDefinitions) {
+    await page.getByRole("tab", { name: definition.label }).click();
+    await expect(page.locator(".top-bar-battery-warning")).toContainText("4% / 放電中");
+    await expect(page.locator(".top-bar-battery-warning")).toBeVisible();
+    await expectStopControlsReachable(page);
+    for (const control of ["stop", "pause"]) {
+      const button = page.locator(`[data-control="${control}"]`);
+      if (await button.isEnabled()) await button.click();
+    }
+  }
+});
+
+test("低電池 Bool でも警告する", async ({ page }) => {
+  // Arrange
+  await openViewerConnectedToFakeBridge(page, "channels");
+  await advertiseBattery("/system/low_battery", 301);
+  // Act
+  sendBattery(301, { data: true });
+  // Assert
+  await expect(page.locator(".top-bar-battery-warning")).toBeVisible();
+});
+
+test("電池診断が OK に戻ると警告が消える", async ({ page }) => {
+  // Arrange
+  await openViewerConnectedToFakeBridge(page, "channels");
+  await advertiseBattery("/diagnostics", 302);
+  sendBattery(302, batteryDiagnostic(2));
+  await expect(page.locator(".top-bar-battery-warning")).toBeVisible();
+  // Act
+  sendBattery(302, batteryDiagnostic(0));
+  // Assert
+  await expect(page.locator(".top-bar-battery-warning")).toBeHidden();
+});

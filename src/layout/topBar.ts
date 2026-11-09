@@ -8,6 +8,7 @@ export type TopBar = {
   element: HTMLElement;
   /** 状態パネル（PR 3）が自己位置推定の状態を出す場所。topBar.ts は PR 1 だけが触る。 */
   localizationStatusSlot: HTMLElement;
+  batteryWarningSlot: HTMLElement;
   /** mission の停止・一時停止の処理（PR 7）。登録されるまでボタンは押せない。 */
   setStopHandler(handler: (() => void) | undefined): void;
   setPauseHandler(handler: (() => void) | undefined): void;
@@ -25,6 +26,10 @@ export function createTopBar({ connections, writeGate }: TopBarOptions): TopBar 
   const connectionArea = createElement("div", "top-bar-connections");
   const localizationStatusSlot = createElement("div", "top-bar-localization");
   localizationStatusSlot.dataset["slot"] = "localization-status";
+
+  const batteryWarningSlot = createElement("div", "top-bar-battery-warning");
+  batteryWarningSlot.hidden = true;
+  batteryWarningSlot.setAttribute("role", "alert");
 
   const controlArea = createElement("div", "top-bar-controls");
   const writeSwitchLabel = createElement("label", "write-switch");
@@ -44,7 +49,7 @@ export function createTopBar({ connections, writeGate }: TopBarOptions): TopBar 
     "画面の停止は非常停止ではありません。通信が切れると届きません。ロボットの非常停止スイッチの代わりにしないでください。",
   );
   controlArea.append(writeSwitchLabel, pauseButton, stopButton);
-  element.append(connectionArea, localizationStatusSlot, controlArea, notice);
+  element.append(connectionArea, localizationStatusSlot, batteryWarningSlot, controlArea, notice);
 
   const render = () => {
     connectionArea.replaceChildren(...describeConnections(connections));
@@ -64,6 +69,7 @@ export function createTopBar({ connections, writeGate }: TopBarOptions): TopBar 
   return {
     element,
     localizationStatusSlot,
+    batteryWarningSlot,
     setStopHandler: (handler) => {
       bindHandler(stopButton, handler);
     },
