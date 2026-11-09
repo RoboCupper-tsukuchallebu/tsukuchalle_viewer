@@ -207,6 +207,10 @@ export class FoxgloveClient extends TypedEmitter<FoxgloveClientEvents> {
     socket.binaryType = "arraybuffer";
     this.#socket = socket;
     socket.addEventListener("open", () => {
+      if (this.#socket !== socket) {
+        socket.close(); // close() が先に呼ばれた
+        return;
+      }
       if (socket.protocol !== SUBPROTOCOL) {
         this.emit("connectionError", `サーバーが副プロトコル ${SUBPROTOCOL} を選びませんでした`);
         socket.close();
@@ -217,7 +221,9 @@ export class FoxgloveClient extends TypedEmitter<FoxgloveClientEvents> {
       this.#resendWantedSubscriptions();
     });
     socket.addEventListener("message", (event: MessageEvent<unknown>) => {
-      this.#handleFrame(event.data);
+      if (this.#socket === socket) {
+        this.#handleFrame(event.data);
+      }
     });
     socket.addEventListener("close", () => {
       this.#handleClose(socket);
