@@ -9,6 +9,7 @@ import { startTopBarStatus } from "./panels/status/topBarStatus.ts";
 import { bindClientToTopicStore } from "./store/channelBinding.ts";
 import { DiagnosticsStore } from "./store/diagnosticsStore.ts";
 import { TopicStore } from "./store/topicStore.ts";
+import { startTransformStore } from "./store/transformStore.ts";
 import "./style.css";
 
 const app = document.querySelector<HTMLElement>("#app");
@@ -29,7 +30,9 @@ if (connections.writing !== null) {
 const writeGate = new WriteGate();
 
 const topBar = createTopBar({ connections, writeGate });
-const tabs = createTabs({ connections, topicStore, diagnosticsStore, channelBinding, writeGate });
+const panelContext = { connections, topicStore, diagnosticsStore, channelBinding, writeGate };
+startTransformStore(panelContext);
+const tabs = createTabs(panelContext);
 app.append(topBar.element, tabs.element);
 
 // 上部バーに出すもの・登録するものは、タブを閉じても動き続ける必要があるので、パネルではなく起動時に 1 回つなぐ。

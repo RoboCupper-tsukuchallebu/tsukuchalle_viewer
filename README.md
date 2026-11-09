@@ -104,3 +104,16 @@ PR 7 からは `src/panels/3d/viewApi.ts` の `onGroundClick(listener: (point: {
 `addOverlay` に渡す物は **map 座標**で置いてください。パネルが map から表示フレームへの変換を掛けるので、表示フレームが odom や base_link でも印は同じ場所に出ます。map から表示フレームへの TF が無いときは隠れます。
 
 ロボットの位置は `getRobotPoseInMap(): RobotPoseInMap` で取れます。型は `{ isAvailable: true; x: number; y: number; z: number; yawRadians: number } | { isAvailable: false; reason: string }` で、map → base_link の TF から求めます。TF が無い、動的 TF が古い、3D パネルが開かれていないときは `isAvailable: false` と理由を返します（waypoint の確認の画面で、ロボットから最初の waypoint までの距離を出すために使います）。
+
+### TF の購読
+
+TF の購読はアプリ起動時にストアが保持します。3D タブを閉じても map 座標のロボット姿勢を参照できるようにするためです。動的 TF の古さはブラウザでの受信時刻から判断します。3D パネルも表示更新のために同じトピックを購読しますが、接続側が購読を共有します。
+
+### 停止の応答時間の確認手順（mission 機能の実装後）
+
+1. lightnav_sim と閲覧用・書き込み用 bridge を起動し、ビューアの閲覧用接続で `/velodyne_points` を購読する。
+2. シミュレーションで waypoint の goal を受理させ、get_result が応答待ちの間に停止を押す。
+3. 停止を押してから画面に応答が表示されるまでの時間を測る。同じ条件で goal の開始から 10 回繰り返し、中央値と最大値を記録する。目安は 1 秒以内。
+4. get_result の待機中にも一時停止が遅れず応答することを別途確認する。5 秒に近い場合は bridge の `message_backlog_size` と接続構成を見直す。
+
+この測定はシミュレーションで行い、実機での確認結果とは区別して記録する。画面の停止は非常停止の代わりではない。

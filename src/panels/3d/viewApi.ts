@@ -62,10 +62,11 @@ export function notifyGroundClick(result: GroundClickResult): void {
 }
 
 export function registerRobotPoseProvider(provider: () => RobotPoseInMap): () => void {
+  const previousProvider = poseProvider;
   poseProvider = provider;
   return () => {
     if (poseProvider === provider) {
-      poseProvider = undefined;
+      poseProvider = previousProvider;
     }
   };
 }
