@@ -6,7 +6,7 @@ import unittest
 from http.client import HTTPConnection
 from http.server import ThreadingHTTPServer
 from pathlib import Path
-from unittest.mock import patch, call
+from unittest.mock import patch, call, Mock
 
 spec = importlib.util.spec_from_file_location("manager", Path(__file__).with_name("manager.py"))
 m = importlib.util.module_from_spec(spec)
@@ -27,6 +27,23 @@ class Tests(unittest.TestCase):
         run.reset_mock()
         manager.action("bag_record", "stop")
         self.assertEqual(run.call_args_list, [call(["docker", "kill", "--signal", "SIGINT", "bag-rec"]), call(["docker", "wait", "bag-rec"], timeout=120), call(["docker", "rm", "bag-rec"])])
+
+
+    @patch.object(m, "run")
+    def test_bag_start_and_localization_stop(self, run):
+        manager = m.Manager(CONFIG, ENV)
+        with patch.object(m, "datetime") as clock:
+            clock.now.return_value.strftime.return_value = "20261109T000000Z"
+            manager.action("bag_record", "start")
+        run.assert_called_with(["docker", "compose", "--project-directory", "/tmp", "run", "-d", "--no-deps", "--name", "bag-rec", "-v", "/tmp:/bags", "drive", "ros2", "bag", "record", "-o", "/bags/20261109T000000Z", *m.TOPICS], env={"PATH": "/bin"})
+        manager.action("localization_mapping", "stop")
+        run.assert_called_with(["docker", "compose", "--project-directory", "/tmp", "stop", "localization"], env={"PATH": "/bin", "LIGHTNAV_LOCALIZATION_MODE": "mapping"})
+
+    @patch.object(m.subprocess, "run")
+    def test_subprocess_never_uses_shell(self, subprocess_run):
+        subprocess_run.return_value = Mock()
+        m.run(["docker", "ps"])
+        self.assertNotIn("shell", subprocess_run.call_args.kwargs)
 
     def test_requests(self):
         m.Handler.manager = m.Manager(CONFIG, ENV)
