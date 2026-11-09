@@ -1,5 +1,12 @@
 import { defineConfig, loadEnv } from "vite";
 
+export function createDevProxy(devBridgeUrl?: string, controlBridgeUrl?: string) {
+  return {
+    ...(controlBridgeUrl ? { "^/ws-control$": { target: controlBridgeUrl, ws: true, rewrite: () => "/" } } : {}),
+    ...(devBridgeUrl ? { "^/ws$": { target: devBridgeUrl, ws: true, rewrite: () => "/" } } : {}),
+  };
+}
+
 // 開発中だけ使う。中継先は commit しない .env.local の VIEWER_DEV_BRIDGE_URL で決める（例: ws://localhost:8765）。
 export default defineConfig(({ mode }) => {
   const environment = loadEnv(mode, process.cwd(), "VIEWER_");
@@ -7,10 +14,7 @@ export default defineConfig(({ mode }) => {
   const controlBridgeUrl = environment["VIEWER_DEV_CONTROL_BRIDGE_URL"];
   return {
     server: {
-      proxy: {
-        ...(controlBridgeUrl ? { "/ws-control": { target: controlBridgeUrl, ws: true, rewrite: () => "/" } } : {}),
-        ...(devBridgeUrl ? { "/ws": { target: devBridgeUrl, ws: true, rewrite: () => "/" } } : {}),
-      },
+      proxy: createDevProxy(devBridgeUrl, controlBridgeUrl),
     },
     test: {
       include: ["test/**/*.test.ts"],
