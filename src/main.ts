@@ -33,7 +33,7 @@ const tabs = createTabs({ connections, topicStore, diagnosticsStore, channelBind
 app.append(topBar.element, tabs.element);
 
 // 上部バーに出すもの・登録するものは、タブを閉じても動き続ける必要があるので、パネルではなく起動時に 1 回つなぐ。
-startTopBarStatus({ topBar, topicStore, diagnosticsStore });
+startTopBarStatus({ topBar, topicStore, diagnosticsStore, viewing: connections.viewing, channelBinding });
 startMissionControls({ topBar, connections, writeGate });
 
 connectAll(connections);

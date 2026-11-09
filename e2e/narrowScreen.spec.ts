@@ -75,3 +75,36 @@ test("幅 360 px で、ページを下まで送っても停止・一時停止は
   expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   await expectStopControlsReachable(page);
 });
+
+function findSubscription(channelId: number): { id: number; channelId: number } | undefined {
+  return server.jsonReceived("subscribe")
+    .flatMap((message) => message["subscriptions"] as { id: number; channelId: number }[])
+    .find((subscription) => subscription.channelId === channelId);
+}
+
+test("幅 360 px の状態パネルで長い診断値を表示しても操作が収まる", async ({ page }) => {
+  // Arrange
+  await openViewerConnectedToFakeBridge(page, "status");
+  await expect(page.locator(".status-panel")).toBeVisible();
+  server.sendJson({ op: "advertise", channels: [{ id: 200, topic: "/diagnostics", encoding: "json", schemaName: "diagnostics", schema: "" }] });
+  await expect.poll(() => findSubscription(200)).toBeDefined();
+  const subscription = findSubscription(200);
+  if (!subscription) {
+    throw new Error("購読が見つかりません");
+  }
+  const payload = Buffer.from(JSON.stringify({ status: [{ name: "long_diagnostic_name_".repeat(8), level: 1, message: "", values: [{ key: "long_key_".repeat(10), value: "long_value_".repeat(20) }] }] }));
+  const header = Buffer.alloc(13);
+  header.writeUInt8(1, 0);
+  header.writeUInt32LE(subscription.id, 1);
+  // Act
+  server.sendBinary(Buffer.concat([header, payload]));
+  // Assert
+  await expect(page.locator(".status-panel")).toContainText("long_value_");
+  await page.locator(".status-fields dd").first().hover();
+  await page.locator(".top-bar-localization").evaluate((element) => { element.textContent = "長い自己位置情報".repeat(50); });
+  await expectStopControlsReachable(page);
+  for (const control of ["stop", "pause"]) {
+    const button = page.locator(`[data-control="${control}"]`);
+    if (await button.isEnabled()) await button.click();
+  }
+});
