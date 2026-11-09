@@ -129,3 +129,14 @@ uint32 nanosec
   await expect(page.locator(".status-panel")).toContainText("long_value_");
   await expectStopControlsReachable(page);
 });
+
+test("幅 360 px で障害物の表示を切り替えても停止操作が見える", async ({ page }) => {
+  await openViewerConnectedToFakeBridge(page, "3d");
+  const obstacle = page.getByLabel("障害物を表示");
+  await expect(obstacle).toBeVisible();
+  await obstacle.check();
+  await expect(obstacle).toBeChecked();
+  await expectStopControlsReachable(page);
+  await obstacle.uncheck();
+  await expectStopControlsReachable(page);
+});
