@@ -94,3 +94,13 @@ docker compose up -d
 ## 公開リポジトリです
 
 IP アドレス、ホスト名、メールアドレス、緯度経度などの位置、個人の情報を、コード・文書・commit・PR に書かないでください。
+
+### 3D 表示
+
+3D タブでは TF を使って点群、保存地図、軌跡、走行経路とロボットを表示します。表示フレーム、点数の上限、保存地図と軌跡のトピックを変更できます。既定の点群は aligned_scan です。velodyne は必要なときだけ有効にしてください（約 1.5 MB × 10 Hz）。地面のクリックは map 座標に変換され、TF が不足または古い場合は理由を表示します。
+
+PR 7 からは `src/panels/3d/viewApi.ts` の `onGroundClick(listener: (point: { x: number; y: number }) => void): () => void`、`onGroundClickRejected(listener: (reason: string) => void): () => void`、`addOverlay(object: Object3D): () => void` を import できます。返り値はいずれも登録を解除する関数です。クリックは map 座標の x・y で、ロボットの z の高さにある水平面との交点です。必要な TF がない場合や動的 TF が古い場合は配置できず、理由が通知されます。オーバーレイはパネルを開き直しても再び追加されます。
+
+`addOverlay` に渡す物は **map 座標**で置いてください。パネルが map から表示フレームへの変換を掛けるので、表示フレームが odom や base_link でも印は同じ場所に出ます。map から表示フレームへの TF が無いときは隠れます。
+
+ロボットの位置は `getRobotPoseInMap(): RobotPoseInMap` で取れます。型は `{ isAvailable: true; x: number; y: number; z: number; yawRadians: number } | { isAvailable: false; reason: string }` で、map → base_link の TF から求めます。TF が無い、動的 TF が古い、3D パネルが開かれていないときは `isAvailable: false` と理由を返します（waypoint の確認の画面で、ロボットから最初の waypoint までの距離を出すために使います）。
