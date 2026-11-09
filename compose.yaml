@@ -1,0 +1,18 @@
+# scripts/deploy.sh が ~/tsukuchalle_viewer/ に置く。そのディレクトリで docker compose up -d する。
+# .env（.env.example を写す）:
+#   VIEWER_PORT: ビューアが待ち受けるポート（既定 8080）
+#   VIEWER_BRIDGE_PORT: /ws の中継先、同じホストの foxglove_bridge のポート（既定 8765）
+#   VIEWER_IMAGE_TAG: イメージのタグ（既定 latest）
+services:
+  viewer:
+    image: tsukuchalle-viewer:${VIEWER_IMAGE_TAG:-latest}
+    # bridge が 127.0.0.1 で待ち受けても届くよう、ホストのネットワークをそのまま使う。
+    network_mode: host
+    environment:
+      VIEWER_PORT: ${VIEWER_PORT:-8080}
+      VIEWER_BRIDGE_PORT: ${VIEWER_BRIDGE_PORT:-8765}
+      VIEWER_CONTROL_BRIDGE_PORT: ${VIEWER_CONTROL_BRIDGE_PORT:-8766}
+      VIEWER_ALLOWED_ORIGINS: ${VIEWER_ALLOWED_ORIGINS:-}
+      VIEWER_ALLOWED_HOSTS: ${VIEWER_ALLOWED_HOSTS:-}
+    init: true
+    restart: "no"

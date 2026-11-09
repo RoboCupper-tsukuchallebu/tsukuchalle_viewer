@@ -1,0 +1,77 @@
+name: ci
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # AGENTS.md の必須の CI。型検査、lint、単体試験、ビルド、画面の試験（Playwright）。
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Type check
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npx eslint .
+      - name: Unit tests
+        run: npx vitest run
+      - name: Build
+        run: npx vite build
+      # 幅 360 px で停止・一時停止が画面の中に見えること（Chromium だけ入れる）。
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Screen tests (Playwright)
+        run: npx playwright test
+
+  # 必須にはしない。イメージを作って起動し、nginx が /ws を Upgrade と Sec-WebSocket-Protocol つきで中継することを確かめる。push はしない。
+  docker:
+    runs-on: ubuntu-24.04
+    env:
+      VIEWER_PORT: "18080"
+      VIEWER_BRIDGE_PORT: "18765"
+      VIEWER_CONTROL_BRIDGE_PORT: "18766"
+      VIEWER_ALLOWED_ORIGINS: "http://127.0.0.1:18080"
+      VIEWER_ALLOWED_HOSTS: "127.0.0.1:18080"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Build image
+        run: docker build -t tsukuchalle-viewer:ci .
+      - name: Start viewer (host network, like compose.yaml)
+        run: docker run -d --name viewer --network host -e VIEWER_PORT -e VIEWER_BRIDGE_PORT -e VIEWER_CONTROL_BRIDGE_PORT -e VIEWER_ALLOWED_ORIGINS -e VIEWER_ALLOWED_HOSTS tsukuchalle-viewer:ci
+      - name: Page is served
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            curl -fsS "http://127.0.0.1:${VIEWER_PORT}/" | grep -q "tsukuchalle viewer" && exit 0
+            sleep 1
+          done
+          docker logs viewer
+          exit 1
+      - name: /ws and /ws-control proxy and Host/Origin allowlists
+        run: node scripts/checkProxy.ts
+      - name: Logs
+        if: failure()
+        run: docker logs viewer
