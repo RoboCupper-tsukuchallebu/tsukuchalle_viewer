@@ -29,6 +29,10 @@ export const topicNames = {
   missionStatus: `${followWaypointsAction}/_action/status`,
 } as const;
 
+export const frameNames = { map: "map", robot: "base_link" } as const;
+
+export const defaultPointCloud = topicNames.alignedScan;
+
 export const serviceNames = {
   sendGoal: `${followWaypointsAction}/_action/send_goal`,
   getResult: `${followWaypointsAction}/_action/get_result`,
@@ -70,5 +74,6 @@ export const staleThresholdMs = {
 } as const;
 
 export const storageKeys = {
+  selected3dFrame: "tsukuchalle-viewer.selected3dFrame",
   selectedTab: "tsukuchalle-viewer.selectedTab",
 } as const;
