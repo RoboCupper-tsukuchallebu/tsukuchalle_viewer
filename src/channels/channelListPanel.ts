@@ -6,6 +6,8 @@ const refreshIntervalMs = 1000;
 /** bridge が advertise したチャネルとサービスの一覧。デコードできるものだけ購読できる。 */
 export const createChannelListPanel: MountPanel = (container, context) => {
   const { viewing } = context.connections;
+  // このパネルが手にしている購読。ほかのパネルの購読は触らない。
+  const ownReleases = new Map<string, () => void>();
   const root = createElement("section", "channel-list");
   container.append(root);
 
@@ -31,13 +33,14 @@ export const createChannelListPanel: MountPanel = (container, context) => {
 
       const checkbox = createElement("input");
       checkbox.type = "checkbox";
-      checkbox.checked = viewing.isSubscribedToTopic(channel.topic);
+      checkbox.checked = ownReleases.has(channel.topic);
       checkbox.disabled = !decoder.isDecodable;
       checkbox.addEventListener("change", () => {
         if (checkbox.checked) {
-          viewing.subscribeToTopic(channel.topic);
+          ownReleases.set(channel.topic, viewing.subscribeToTopic(channel.topic));
         } else {
-          viewing.unsubscribeFromTopic(channel.topic);
+          ownReleases.get(channel.topic)?.();
+          ownReleases.delete(channel.topic);
         }
       });
       const checkboxCell = createElement("td");
@@ -79,6 +82,9 @@ export const createChannelListPanel: MountPanel = (container, context) => {
   }, refreshIntervalMs);
 
   return () => {
+    ownReleases.forEach((release) => {
+      release();
+    });
     stops.forEach((stop) => {
       stop();
     });

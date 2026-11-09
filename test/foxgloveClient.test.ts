@@ -175,17 +175,17 @@ describe("トピックの購読", () => {
     expect(resubscription?.channelId).toBe(42);
   });
 
-  test("unsubscribeFromTopic は unsubscribe を送り、つなぎ直しても購読しない", async () => {
+  test("購読を手放すと unsubscribe を送り、つなぎ直しても購読しない", async () => {
     // Arrange
     await connectClient();
     server.sendJson({ op: "advertise", channels: [sampleChannel] });
-    client.subscribeToTopic("/example");
+    const release = client.subscribeToTopic("/example");
     await vi.waitFor(() => {
       expect(server.jsonReceived("subscribe")).toHaveLength(1);
     });
 
     // Act
-    client.unsubscribeFromTopic("/example");
+    release();
     await vi.waitFor(() => {
       expect(server.jsonReceived("unsubscribe")).toHaveLength(1);
     });
@@ -197,7 +197,33 @@ describe("トピックの購読", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Assert
+    expect(client.isSubscribedToTopic("/example")).toBe(false);
     expect(server.jsonReceived("subscribe", 1)).toHaveLength(0);
+  });
+
+  test("同じトピックの購読者が複数いるときは、全員が手放したときだけ unsubscribe を送る", async () => {
+    // Arrange
+    await connectClient();
+    server.sendJson({ op: "advertise", channels: [sampleChannel] });
+    const releaseFirst = client.subscribeToTopic("/example");
+    const releaseSecond = client.subscribeToTopic("/example");
+    await vi.waitFor(() => {
+      expect(server.jsonReceived("subscribe")).toHaveLength(1);
+    });
+
+    // Act: 1 人目が手放す（2 回呼んでも 1 回分）
+    releaseFirst();
+    releaseFirst();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const unsubscribesAfterFirst = server.jsonReceived("unsubscribe").length;
+    releaseSecond();
+    await vi.waitFor(() => {
+      expect(server.jsonReceived("unsubscribe")).toHaveLength(1);
+    });
+
+    // Assert
+    expect(unsubscribesAfterFirst).toBe(0);
+    expect(server.jsonReceived("subscribe")).toHaveLength(1);
   });
 
   test("再接続の間隔は延びていき、上限で止まる", async () => {

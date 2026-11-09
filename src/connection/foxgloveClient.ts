@@ -64,7 +64,8 @@ export class FoxgloveClient extends TypedEmitter<FoxgloveClientEvents> {
   #channels = new Map<number, Channel>();
   #services = new Map<number, ServiceDescription>();
 
-  #wantedTopics = new Set<string>();
+  /** トピック名ごとの購読者の数。0 になったときだけ unsubscribe を送る（上部バーと各パネルが同じトピックを読むため）。 */
+  #topicHolderCounts = new Map<string, number>();
   #subscriptionIdByChannelId = new Map<number, number>();
   #channelIdBySubscriptionId = new Map<number, number>();
   #nextSubscriptionId = 1;
@@ -108,7 +109,7 @@ export class FoxgloveClient extends TypedEmitter<FoxgloveClientEvents> {
     return this.#serverInfo?.capabilities.includes(capability) ?? false;
   }
   isSubscribedToTopic(topic: string): boolean {
-    return this.#wantedTopics.has(topic);
+    return (this.#topicHolderCounts.get(topic) ?? 0) > 0;
   }
 
   connect(): void {
@@ -128,17 +129,34 @@ export class FoxgloveClient extends TypedEmitter<FoxgloveClientEvents> {
 
   // ---- トピック（名前で購読する） ----
 
-  subscribeToTopic(topic: string): void {
-    this.#wantedTopics.add(topic);
+  /**
+   * 購読する。返る関数で手放す（2 回呼んでも 1 回分）。購読者が 0 になったときだけ unsubscribe を送る。
+   * 切れてつなぎ直したときは、購読者がいるトピックを名前で購読し直す。
+   */
+  subscribeToTopic(topic: string): () => void {
+    this.#topicHolderCounts.set(topic, (this.#topicHolderCounts.get(topic) ?? 0) + 1);
     for (const channel of this.#channels.values()) {
       if (channel.topic === topic) {
         this.#subscribeToChannel(channel);
       }
     }
+    let isReleased = false;
+    return () => {
+      if (isReleased) {
+        return;
+      }
+      isReleased = true;
+      this.#releaseTopic(topic);
+    };
   }
 
-  unsubscribeFromTopic(topic: string): void {
-    this.#wantedTopics.delete(topic);
+  #releaseTopic(topic: string): void {
+    const remaining = (this.#topicHolderCounts.get(topic) ?? 0) - 1;
+    if (remaining > 0) {
+      this.#topicHolderCounts.set(topic, remaining);
+      return;
+    }
+    this.#topicHolderCounts.delete(topic);
     const subscriptionIds: number[] = [];
     for (const channel of this.#channels.values()) {
       const subscriptionId = this.#subscriptionIdByChannelId.get(channel.id);
@@ -321,7 +339,7 @@ export class FoxgloveClient extends TypedEmitter<FoxgloveClientEvents> {
       case "advertise":
         for (const channel of message.channels) {
           this.#channels.set(channel.id, channel);
-          if (this.#wantedTopics.has(channel.topic)) {
+          if (this.isSubscribedToTopic(channel.topic)) {
             this.#subscribeToChannel(channel);
           }
         }

@@ -90,6 +90,26 @@ describe("上部バー", () => {
     expect(stopHandler).toHaveBeenCalledTimes(1);
   });
 
+  test("上部バーに登録した停止の処理は、どのタブに切り替えても 1 回の操作で呼ばれる", async () => {
+    // Arrange
+    const context = createContext();
+    const topBar = createTopBar({ connections: context.connections, writeGate: context.writeGate });
+    const tabs = createTabs(context);
+    document.body.append(topBar.element, tabs.element);
+    const stopHandler = vi.fn();
+    topBar.setStopHandler(stopHandler);
+
+    for (const definition of tabDefinitions) {
+      // Act
+      await tabs.select(definition.id);
+      document.querySelector<HTMLButtonElement>('[data-control="stop"]')?.click();
+    }
+
+    // Assert
+    expect(stopHandler).toHaveBeenCalledTimes(tabDefinitions.length);
+    tabs.dispose();
+  });
+
   test("閲覧用の接続先が既定でないときは、書き込み用の接続が無いと出す", () => {
     // Arrange
     const connections = createViewerConnections({ viewingUrl: "ws://localhost:9999/", writingUrl: null, isViewingUrlOverridden: true });
