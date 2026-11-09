@@ -57,6 +57,10 @@ export const pointCloudLimits = {
 // 地図タイル（国土地理院の標準地図が既定。出典の表示が要る。仕様 3.4 節）
 export const mapTiles = {
   standardUrlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png",
+  photoUrlTemplate: "https://cyberjapandata.gsi.go.jp/xyz/seamlessphoto/{z}/{x}/{y}.jpg",
+  osmUrlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+  photoMinimumNativeZoom: 14,
+  photoMaximumNativeZoom: 18,
   minimumZoom: 9,
   maximumZoom: 18,
 } as const;
