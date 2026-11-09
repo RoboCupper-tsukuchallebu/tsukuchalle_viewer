@@ -124,6 +124,8 @@ export class FoxgloveClient extends TypedEmitter<FoxgloveClientEvents> {
     clearTimeout(this.#reconnectTimer);
     this.#reconnectTimer = undefined;
     this.#setState("closed");
+    // 古い socket の close は #handleClose で無視されることがある（すぐ connect() し直したとき）ので、待っている要求はここで失敗にする。
+    this.#resetServerState();
     this.#socket?.close();
   }
 

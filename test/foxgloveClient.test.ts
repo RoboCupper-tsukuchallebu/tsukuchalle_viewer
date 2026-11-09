@@ -316,6 +316,24 @@ describe("サービス呼び出し", () => {
     await rejections;
   });
 
+  test("close() のすぐあとに connect() しても、古い接続で待っていた呼び出しは失敗になる", async () => {
+    // Arrange
+    await connectClient();
+    const pendingCall = client.callService(5, new Uint8Array());
+    const pendingParameters = client.getParameters(["a"]);
+    const rejections = Promise.all([
+      expect(pendingCall).rejects.toThrow("disconnected"),
+      expect(pendingParameters).rejects.toThrow("disconnected"),
+    ]);
+
+    // Act
+    client.close();
+    client.connect();
+
+    // Assert
+    await rejections;
+  });
+
   test("つながっていないときの呼び出しは、送らずにすぐ失敗になる", async () => {
     // Arrange
     client = new FoxgloveClient({ url: server.url, ...fastReconnect });

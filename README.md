@@ -32,6 +32,8 @@ npm test           # Vitest
 npm run typecheck # tsc --noEmit
 npm run lint
 npm run build      # tsc と vite build
+npx playwright install chromium   # 初回だけ
+npm run test:e2e   # vite build のあと、Playwright（幅 360 px の画面の試験）
 ```
 
 `vite dev` から bridge へ直接つなぐときは、commit しない `.env.local` に中継先を書きます。
@@ -40,7 +42,7 @@ npm run build      # tsc と vite build
 VIEWER_DEV_BRIDGE_URL=ws://localhost:8765
 ```
 
-試験は、`ws` で立てた偽の `foxglove.sdk.v1` サーバーとの接続試験（`test/foxgloveClient.test.ts`）、op とバイナリのフレーム、CDR の単体試験、happy-dom による画面の試験です。
+試験は、`ws` で立てた偽の `foxglove.sdk.v1` サーバーとの接続試験（`test/foxgloveClient.test.ts`）、op とバイナリのフレーム、CDR の単体試験、happy-dom による画面の試験です。幅 360 px（スマートフォン）で、どのタブでも停止・一時停止が画面の中に見え、ページを下まで送っても見え続けることは、Playwright（Chromium、`e2e/`）が偽のサーバーにつないで確かめます。
 
 ## 配信（X13）
 
@@ -51,12 +53,15 @@ VIEWER_DEV_BRIDGE_URL=ws://localhost:8765
 scripts/deploy.sh <ロボットの SSH 先>
 ```
 
-ロボット PC の `~/tsukuchalle_viewer/` に `.env`（`.env.example` を写す）を置いて起動します。
+`scripts/deploy.sh` は `compose.yaml` と `.env.example` をロボット PC の `~/tsukuchalle_viewer/` に送ります。初回だけ `.env.example` を `.env` に写して（必要なら編集して）起動します。
 
 ```sh
 cd ~/tsukuchalle_viewer
+cp .env.example .env   # 初回だけ
 docker compose up -d
 ```
+
+`compose.yaml` は `restart: "no"` です（tsukuchalle_description の `compose.yaml` に合わせている。ロボット PC を再起動したあとは、人が `docker compose up -d` します）。nginx のイメージは digest で固定しています。
 
 | 変数 | 既定 | 意味 |
 |---|---|---|
@@ -69,7 +74,7 @@ docker compose up -d
 
 `.github/workflows/ci.yml`
 
-- `build`（必須）: `npm ci`、`tsc --noEmit`、`eslint .`、`vitest run`、`vite build`。
+- `build`（必須）: `npm ci`、`tsc --noEmit`、`eslint .`、`vitest run`、`vite build`、Playwright（Chromium だけ入れて `playwright test`）。
 - `docker`（必須ではない）: イメージを作って起動し、ページが返ることと、`/ws` が `Upgrade` と `Sec-WebSocket-Protocol` を通して偽の bridge に中継されることを確かめる。
 
 ## ライセンス

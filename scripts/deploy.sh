@@ -30,12 +30,12 @@ docker save "${imageName}:${imageTag}" | gzip | ssh "${robotTarget}" "gunzip | d
 ssh "${robotTarget}" "docker tag ${imageName}:${imageTag} ${imageName}:latest"
 
 ssh "${robotTarget}" "mkdir -p ~/tsukuchalle_viewer"
-scp compose.yaml "${robotTarget}:~/tsukuchalle_viewer/"
+scp compose.yaml .env.example "${robotTarget}:~/tsukuchalle_viewer/"
 
 cat <<MESSAGE
-deployed ${imageName}:${imageTag} (also latest) and compose.yaml to ${robotTarget}:~/tsukuchalle_viewer/
+deployed ${imageName}:${imageTag} (also latest), compose.yaml and .env.example to ${robotTarget}:~/tsukuchalle_viewer/
 On the robot PC:
   cd ~/tsukuchalle_viewer
-  # .env (README): VIEWER_PORT (default 8080) and VIEWER_BRIDGE_PORT (default 8765)
+  # cp .env.example .env   # first time only; edit VIEWER_PORT / VIEWER_BRIDGE_PORT if needed
   docker compose up -d
 MESSAGE

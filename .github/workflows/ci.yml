@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # AGENTS.md の必須の CI。型検査、lint、単体試験、ビルド。
+  # AGENTS.md の必須の CI。型検査、lint、単体試験、ビルド、画面の試験（Playwright）。
   build:
     runs-on: ubuntu-24.04
     steps:
@@ -34,6 +34,11 @@ jobs:
         run: npx vitest run
       - name: Build
         run: npx vite build
+      # 幅 360 px で停止・一時停止が画面の中に見えること（Chromium だけ入れる）。
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Screen tests (Playwright)
+        run: npx playwright test
 
   # 必須にはしない。イメージを作って起動し、nginx が /ws を Upgrade と Sec-WebSocket-Protocol つきで中継することを確かめる。push はしない。
   docker:
