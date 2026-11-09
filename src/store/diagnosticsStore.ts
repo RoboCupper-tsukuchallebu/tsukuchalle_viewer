@@ -39,8 +39,8 @@ export class DiagnosticsStore {
     if (!Array.isArray(statuses)) {
       return;
     }
-    for (const rawStatus of statuses as DecodedStatus[]) {
-      if (typeof rawStatus.name !== "string") {
+    for (const rawStatus of statuses as (DecodedStatus | null)[]) {
+      if (rawStatus === null || typeof rawStatus !== "object" || typeof rawStatus.name !== "string") {
         continue;
       }
       this.#byName.set(rawStatus.name, {
@@ -80,8 +80,8 @@ function toLevel(value: unknown): DiagnosticLevel {
 function toValues(rawValues: unknown): Record<string, string> {
   const values: Record<string, string> = {};
   if (Array.isArray(rawValues)) {
-    for (const item of rawValues as DecodedKeyValue[]) {
-      if (typeof item.key === "string" && typeof item.value === "string") {
+    for (const item of rawValues as (DecodedKeyValue | null)[]) {
+      if (item !== null && typeof item === "object" && typeof item.key === "string" && typeof item.value === "string") {
         values[item.key] = item.value;
       }
     }

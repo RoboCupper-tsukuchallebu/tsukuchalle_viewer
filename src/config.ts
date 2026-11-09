@@ -71,6 +71,8 @@ export const stopResponseTimeoutMs = 5000;
 export const staleThresholdMs = {
   /** 途中の動的な TF がこれより古いと waypoint を置けない。 */
   dynamicTransform: 1000,
+  /** 状態・diagnostics・sysinfo の受信間隔。 */
+  status: 5000,
 } as const;
 
 export const storageKeys = {

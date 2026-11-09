@@ -1,0 +1,9 @@
+.status-panel, .status-section, .top-bar-localization { min-width: 0; overflow-wrap: anywhere; }
+.status-section { border-bottom: 1px solid var(--border); padding-bottom: 12px; }
+.status-fields { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); gap: 4px 12px; }
+.status-fields dt, .status-fields dd { min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.diagnostic-level { margin-bottom: 0; }
+.level-0, .top-bar-localization[data-level="ok"] { color: #287b38; }
+.level-1, .top-bar-localization[data-level="warning"] { color: var(--warning); }
+.level-2, .top-bar-localization[data-level="error"] { color: var(--danger); }
+.level-3, .status-stale, .top-bar-localization[data-level="stale"] { color: var(--muted); }
