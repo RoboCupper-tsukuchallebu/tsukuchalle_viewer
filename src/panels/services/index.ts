@@ -15,7 +15,7 @@ export function mountPanel(container: HTMLElement, context: PanelContext): () =>
   message.setAttribute("role", "status");
   const list = document.createElement("div");
   container.append(title, message, list);
-  const state = { disposed: false, busy: false };
+  const state = { disposed: false, busy: false, polling: false };
   let services: Service[] = [];
   const render = () => {
     list.replaceChildren();
@@ -47,7 +47,8 @@ export function mountPanel(container: HTMLElement, context: PanelContext): () =>
     }
   };
   const refresh = async () => {
-    if (state.disposed || document.hidden || state.busy) return;
+    if (state.disposed || document.hidden || state.busy || state.polling) return;
+    state.polling = true;
     try {
       const response = await fetch("/api/services", { headers, cache: "no-store" });
       if (!response.ok) throw new Error();
@@ -57,6 +58,7 @@ export function mountPanel(container: HTMLElement, context: PanelContext): () =>
       if (!state.disposed) { services = data as Service[]; render(); }
     // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
     } catch { if (!state.disposed) message.textContent = "サービスの状態を取得できません。"; }
+    finally { state.polling = false; }
   };
   const unsubscribe = context.writeGate.subscribe(render);
   const timer = window.setInterval(() => { void refresh(); }, 2000);

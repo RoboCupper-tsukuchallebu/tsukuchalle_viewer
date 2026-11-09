@@ -11,7 +11,8 @@ from urllib.parse import urlsplit
 
 IDS = {"drive", "teleop", "joy", "mux", "nav", "localization_mapping", "localization_localization", "bag_record"}
 TOPICS = ["/tf", "/tf_static", "/odom", "/cmd_vel", "/velodyne_points", "/lightnav/localization/map_cloud", "/lightnav/localization/path"]
-LOCK = threading.Lock()
+ACTION_LOCK = threading.Lock()
+STATUS_LOCK = threading.Lock()
 
 
 def load_config(path):
@@ -32,8 +33,8 @@ def load_config(path):
     return data
 
 
-def run(args, *, env=None, timeout=75):
-    return subprocess.run(args, env=env, timeout=timeout, check=True, capture_output=True, text=True)
+def run(arguments, *, environment=None, timeout=75):
+    return subprocess.run(arguments, env=environment, timeout=timeout, check=True, capture_output=True, text=True)
 
 
 class Manager:
@@ -49,38 +50,42 @@ class Manager:
         path = self.environ[item["project"]]
         return ["docker", "compose", "--project-directory", path]
 
-    def env(self, item):
+    def environment(self, item):
         # Do not let the manager's environment override the project's .env.
-        result = {k: v for k, v in self.environ.items() if k in ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG")}
+        result = {name: value for name, value in self.environ.items() if name in ("PATH", "HOME", "DOCKER_HOST", "DOCKER_CONFIG")}
         if "mode" in item:
             result["LIGHTNAV_LOCALIZATION_MODE"] = item["mode"]
         return result
 
     def action(self, key, action):
         item = self.config[key]
-        env = self.env(item)
+        environment = self.environment(item)
         if "mode" in item and action == "start":
             other = "localization_localization" if key == "localization_mapping" else "localization_mapping"
             if self.status(other)["running"]:
                 raise ValueError("stop the other localization mode first")
         if item.get("bag"):
-            if action == "stop":
+            containers = run(["docker", "ps", "-a", "--filter", "name=^/bag-rec$", "--format", "{{.State}}"] ).stdout.splitlines()
+            if containers and containers[0] == "running":
+                if action == "start":
+                    raise ValueError("bag recording is already running")
                 run(["docker", "kill", "--signal", "SIGINT", "bag-rec"])
                 run(["docker", "wait", "bag-rec"], timeout=120)
+            if containers:
                 run(["docker", "rm", "bag-rec"])
-            else:
+            if action == "start":
                 stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-                run(self.compose(item) + ["run", "-d", "--no-deps", "--name", "bag-rec", "-v", self.environ["BAGS_DIR"] + ":/bags", item["service"], "ros2", "bag", "record", "-o", "/bags/" + stamp, *TOPICS], env=env)
+                run(self.compose(item) + ["run", "-d", "--no-deps", "--name", "bag-rec", "-v", self.environ["BAGS_DIR"] + ":/bags", item["service"], "ros2", "bag", "record", "-o", "/bags/" + stamp, *TOPICS], environment=environment)
         else:
-            args = ["up", "-d", "--no-deps", item["service"]] if action == "start" else ["stop", item["service"]]
-            run(self.compose(item) + args, env=env)
+            arguments = ["up", "-d", "--no-deps", item["service"]] if action == "start" else ["stop", item["service"]]
+            run(self.compose(item) + arguments, environment=environment)
 
     def status(self, key):
         item = self.config[key]
         if item.get("bag"):
             names = run(["docker", "ps", "-a", "--filter", "name=^/bag-rec$", "--format", "{{.ID}}"] ).stdout.splitlines()
         else:
-            result = run(self.compose(item) + ["ps", "-a", "-q", item["service"]], env=self.env(item))
+            result = run(self.compose(item) + ["ps", "-a", "-q", item["service"]], environment=self.environment(item))
             names = result.stdout.splitlines()
         if not names:
             return {"id": key, "running": False, "started_at": None, "image_tag": None}
@@ -109,13 +114,15 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(data)
 
     def handle_request(self):
+        if self.headers.get("Host") not in (f"127.0.0.1:{self.server.server_port}", f"localhost:{self.server.server_port}"):
+            self.respond(403, {"error": "invalid host"}); return
         path = urlsplit(self.path)
         parts = path.path.strip("/").split("/")
         if path.query or path.fragment or self.headers.get("X-Requested-With") != "tsukuchalle-viewer":
             self.respond(400, {"error": "invalid request"}); return
         if self.command == "GET" and parts == ["services"]:
             try:
-                with LOCK:
+                with STATUS_LOCK:
                     result = [self.manager.status(key) for key in self.manager.config]
                 self.respond(200, result)
             except (subprocess.SubprocessError, OSError, ValueError, KeyError):
@@ -129,7 +136,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.headers.get("Content-Length", "0") != "0" or self.headers.get("Transfer-Encoding"):
             self.respond(400, {"error": "body not allowed"}); return
         try:
-            with LOCK:
+            with ACTION_LOCK:
                 self.manager.action(parts[1], parts[2])
             logging.info("action %s %s success", parts[1], parts[2])
             self.respond(200, {"ok": True})

@@ -21,3 +21,19 @@ test("書き込みの許可と確認を経てサービスを操作する", async
   await vi.waitFor(() => { expect(fetchMock).toHaveBeenCalledWith("/api/services/drive/start", expect.objectContaining({ method: "POST" })); });
   dispose(); panel.remove(); vi.unstubAllGlobals();
 });
+
+test("状態取得が完了するまで次のポーリングを開始しない", async () => {
+  vi.useFakeTimers();
+  let completeFetch: ((value: { ok: boolean; json: () => Promise<unknown[]> }) => void) | undefined;
+  const fetchMock = vi.fn().mockImplementation(() => new Promise((resolve) => { completeFetch = resolve; }));
+  vi.stubGlobal("fetch", fetchMock);
+  const panel = document.createElement("div");
+  document.body.append(panel);
+  const dispose = mountPanel(panel, { writeGate: new WriteGate() } as PanelContext);
+  await vi.advanceTimersByTimeAsync(6000);
+  expect(fetchMock).toHaveBeenCalledTimes(1);
+  completeFetch?.({ ok: true, json: () => Promise.resolve([]) });
+  await vi.advanceTimersByTimeAsync(2000);
+  expect(fetchMock).toHaveBeenCalledTimes(2);
+  dispose(); panel.remove(); vi.unstubAllGlobals(); vi.useRealTimers();
+});

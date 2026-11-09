@@ -41,12 +41,15 @@ async function connect(path: string, requestOrigin?: string, requestHost?: strin
     socket.on("error", (error) => { clearTimeout(timer); reject(error); });
   });
 }
-const manager = createServer((_req, res) => { res.writeHead(200); res.end("ok"); });
+const manager = createServer((request, response) => {
+  response.writeHead(request.headers.host === `127.0.0.1:${managerPort}` ? 200 : 400);
+  response.end("ok");
+});
 await new Promise<void>((resolve) => manager.listen(managerPort, "127.0.0.1", resolve));
 function checkHttp(method: string, headers: Record<string, string>): Promise<number> {
   return new Promise((resolve, reject) => {
-    const req = request({ host: "127.0.0.1", port: viewerPort, path: "/api/services", method, headers }, (res) => { res.resume(); resolve(res.statusCode ?? 0); });
-    req.on("error", reject); req.end();
+    const httpRequest = request({ host: "127.0.0.1", port: viewerPort, path: "/api/services", method, headers }, (response) => { response.resume(); resolve(response.statusCode ?? 0); });
+    httpRequest.on("error", reject); httpRequest.end();
   });
 }
 try {
