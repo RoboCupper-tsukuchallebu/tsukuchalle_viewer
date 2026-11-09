@@ -1,0 +1,1 @@
+rclpy は実行環境にないため、missionCdr.ts は XCDR1 のリトルエンディアン形式を手計算した値です。ヘッダーの後を整列の原点とし、UUID は 16 バイト、sequence 長・文字列長は uint32、float64 は 8 バイト境界に置いています。テストで MessageWriter の出力と比較し、結果応答を MessageReader で検証します。実 ROS のシリアライザによる採取ではありません。

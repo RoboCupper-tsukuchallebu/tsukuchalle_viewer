@@ -2,6 +2,7 @@ import { topicNames } from "./config.ts";
 import { connectAll, createViewerConnections } from "./connection/connections.ts";
 import { resolveConnectionUrls } from "./connection/connectionUrls.ts";
 import { startMissionControls } from "./control/mission.ts";
+import { actionRoot } from "./control/missionClient.ts";
 import { WriteGate } from "./control/writeGate.ts";
 import { createTabs } from "./layout/tabs.ts";
 import { createTopBar } from "./layout/topBar.ts";
@@ -25,6 +26,8 @@ const channelBinding = bindClientToTopicStore(connections.viewing, topicStore);
 // 書き込み用が別の接続のときの message data も同じ store に入れる。
 if (connections.writing !== null) {
   bindClientToTopicStore(connections.writing, topicStore);
+  connections.writing.subscribeToTopic(`${actionRoot}/feedback`);
+  connections.writing.subscribeToTopic(`${actionRoot}/status`);
 }
 // 書き込みのスイッチは、ページを開くたびに無効から始まる。
 const writeGate = new WriteGate();
@@ -37,6 +40,6 @@ app.append(topBar.element, tabs.element);
 
 // 上部バーに出すもの・登録するものは、タブを閉じても動き続ける必要があるので、パネルではなく起動時に 1 回つなぐ。
 startTopBarStatus({ topBar, topicStore, diagnosticsStore, viewing: connections.viewing, channelBinding });
-startMissionControls({ topBar, connections, writeGate });
+startMissionControls({ topBar, connections, writeGate, topicStore });
 
 connectAll(connections);
