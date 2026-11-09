@@ -33,10 +33,23 @@ export function createControlsForm() {
   const velodyne = document.createElement("input");
   velodyne.type = "checkbox";
   label("velodyne を表示 ", velodyne);
+  const obstacle = document.createElement("input");
+  obstacle.type = "checkbox";
+  label("障害物を表示 ", obstacle);
+  const unknownCells = document.createElement("input");
+  unknownCells.type = "checkbox";
+  label("不明セルを表示 ", unknownCells);
+  const zoneDimensions = [["stop 前方 (m) ", 0.5], ["stop 幅 (m) ", 0.8], ["slow 前方 (m) ", 2.5], ["slow 幅 (m) ", 1.2]].map(([text, value]) => {
+    const input = document.createElement("input");
+    input.type = "number"; input.min = "0.01"; input.step = "0.1"; input.value = String(value);
+    label(String(text), input); return input;
+  });
+  const obstacleStatus = document.createElement("span");
+  obstacleStatus.hidden = true;
   const warning = document.createElement("span");
   warning.textContent = "約 1.5 MB × 10 Hz。細い回線では遅れることがあります。";
   warning.hidden = true;
-  root.append(warning);
+  root.append(warning, obstacleStatus);
   velodyne.addEventListener("change", () => {
     warning.hidden = !velodyne.checked;
   });
@@ -48,7 +61,7 @@ export function createControlsForm() {
   };
   const mapInput = topicInput("保存地図 ", topicNames.savedMap);
   const trajectoryInput = topicInput("軌跡 ", topicNames.savedTrajectory);
-  return { root, frame, limit, mapLimit, velodyne, mapInput, trajectoryInput };
+  return { root, frame, limit, mapLimit, velodyne, obstacle, unknownCells, zoneDimensions, obstacleStatus, mapInput, trajectoryInput };
 }
 
 export type ControlsForm = ReturnType<typeof createControlsForm>;

@@ -6,6 +6,7 @@ const followWaypointsAction = `${mission}/follow_waypoints`;
 
 export const topicNames = {
   // 3D
+  localGrid: "/lightnav/local_grid",
   velodynePoints: "/velodyne_points",
   alignedScan: "/lightnav/localization/aligned_scan",
   localizationOdometry: "/lightnav/localization/odom",
