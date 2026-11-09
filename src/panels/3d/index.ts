@@ -1,4 +1,5 @@
 import type { MountPanel } from "../../layout/panelContext.ts";
+import { createMarkerController } from "./markerController.ts";
 import { attachClickHandler } from "./clickHandler.ts";
 import { attachOverlays, registerRobotPoseProvider } from "./viewApi.ts";
 import { createCloudController } from "./cloudController.ts";
@@ -86,6 +87,7 @@ export const mountPanel: MountPanel = (container, context) => {
       report,
     ),
   );
+  releases.push(createMarkerController(form.root, scene, context, transformTree, () => frameSelection.selectedFrame, report));
   const stopRendering = setup.startRendering();
   return () => {
     stopRendering();
