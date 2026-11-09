@@ -14,7 +14,7 @@ import { TopicStore } from "../../src/store/topicStore.ts";
 function createContext(): PanelContext {
   const connections = createViewerConnections({
     viewingUrl: "ws://viewer.example/ws",
-    writingUrl: "ws://viewer.example/ws",
+    writingUrl: "ws://viewer.example/ws-control",
     isViewingUrlOverridden: false,
   });
   const topicStore = new TopicStore();
@@ -108,6 +108,14 @@ describe("上部バー", () => {
     // Assert
     expect(stopHandler).toHaveBeenCalledTimes(tabDefinitions.length);
     tabs.dispose();
+  });
+
+  test("閲覧用と書き込み用を別々の行に表示する", () => {
+    const context = createContext();
+    const topBar = createTopBar({ connections: context.connections, writeGate: context.writeGate });
+    expect(context.connections.writing).not.toBe(context.connections.viewing);
+    expect(topBar.element.querySelector('[data-connection="閲覧用"]')?.textContent).toContain("/ws");
+    expect(topBar.element.querySelector('[data-connection="書き込み用"]')?.textContent).toContain("/ws-control");
   });
 
   test("閲覧用の接続先が既定でないときは、書き込み用の接続が無いと出す", () => {

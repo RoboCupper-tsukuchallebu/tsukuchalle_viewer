@@ -9,11 +9,9 @@ export const topicNames = {
   velodynePoints: "/velodyne_points",
   alignedScan: "/lightnav/localization/aligned_scan",
   localizationOdometry: "/lightnav/localization/odom",
-  // 依頼にあった名前。実機の bridge は、この 2 つを advertise している（読み取りだけで確かめた）。
-  // 仕様 7.1 の 2 は lightweight-nav-stack の Draft PR #56 の名前（/lightnav/localization/map_cloud と
-  // /lightnav/localization/path）を推奨していたが、どちらを使うかはまだ決まっていない。決まったらここを変える。
-  savedMap: "/lightnav/saved_map",
-  savedTrajectory: "/lightnav/saved_trajectory",
+  // Issue #1 の 2026-11-09 の決定に合わせる。
+  savedMap: "/lightnav/localization/map_cloud",
+  savedTrajectory: "/lightnav/localization/path",
   missionPath: "/lightnav/path",
   transform: "/tf",
   staticTransform: "/tf_static",

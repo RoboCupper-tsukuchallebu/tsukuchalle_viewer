@@ -6,7 +6,7 @@ describe("resolveConnectionUrls", () => {
     // Arrange・Act・Assert
     expect(resolveConnectionUrls({ protocol: "http:", host: "viewer.example:8080", search: "" })).toEqual({
       viewingUrl: "ws://viewer.example:8080/ws",
-      writingUrl: "ws://viewer.example:8080/ws",
+      writingUrl: "ws://viewer.example:8080/ws-control",
       isViewingUrlOverridden: false,
     });
     expect(resolveConnectionUrls({ protocol: "https:", host: "viewer.example", search: "" }).viewingUrl).toBe("wss://viewer.example/ws");
@@ -26,7 +26,7 @@ describe("resolveConnectionUrls", () => {
 
     // Assert
     expect(urls.isViewingUrlOverridden).toBe(false);
-    expect(urls.writingUrl).toBe("ws://viewer.example/ws");
+    expect(urls.writingUrl).toBe("ws://viewer.example/ws-control");
   });
 
   test("?ws= が ws: / wss: でなければ無視して既定を使う", () => {
@@ -43,7 +43,7 @@ describe("resolveConnectionUrls", () => {
     const urls = resolveConnectionUrls({ protocol: "http:", host: "viewer.example", search: "?wsControl=ws%3A%2F%2Fevil.example%2Fws" });
 
     // Assert
-    expect(urls.writingUrl).toBe("ws://viewer.example/ws");
+    expect(urls.writingUrl).toBe("ws://viewer.example/ws-control");
   });
 });
 

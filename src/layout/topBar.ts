@@ -104,13 +104,10 @@ function bindHandler(button: HTMLButtonElement, handler: (() => void) | undefine
 }
 
 function watchedClients({ viewing, writing }: ViewerConnections): FoxgloveClient[] {
-  return writing !== null && writing !== viewing ? [viewing, writing] : [viewing];
+  return writing !== null ? [viewing, writing] : [viewing];
 }
 
 function describeConnections({ viewing, writing }: ViewerConnections): HTMLElement[] {
-  if (writing === viewing) {
-    return [describeClient("閲覧・書き込み", viewing)];
-  }
   const writingDescription =
     writing === null
       ? createElement("p", "connection connection-unavailable", "書き込み用: なし（閲覧用の接続先が既定ではないため）")

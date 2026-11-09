@@ -22,7 +22,7 @@ const diagnosticsStore = new DiagnosticsStore();
 diagnosticsStore.attach(topicStore, topicNames.diagnostics);
 const channelBinding = bindClientToTopicStore(connections.viewing, topicStore);
 // 書き込み用が別の接続のときの message data も同じ store に入れる。
-if (connections.writing !== null && connections.writing !== connections.viewing) {
+if (connections.writing !== null) {
   bindClientToTopicStore(connections.writing, topicStore);
 }
 // 書き込みのスイッチは、ページを開くたびに無効から始まる。

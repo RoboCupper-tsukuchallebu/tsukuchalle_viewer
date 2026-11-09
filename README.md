@@ -6,7 +6,7 @@
 
 - `foxglove.sdk.v1` の薄いクライアント（`src/connection/`）。申し出る副プロトコルは `foxglove.sdk.v1` だけ。切れたら 1 秒から間隔を延ばして（最大 10 秒）つなぎ直し、トピックは名前で購読し直す。
 - cdr（ROS 2）と json のデコード（`src/decoding/`）。トピックごとの最新値と受信時刻を持つ store（`src/store/`）。
-- 上部バー（接続の状態、capabilities）と、5 つのタブの枠とチャネルの一覧。停止・一時停止・書き込みのスイッチは場所だけあり、まだ押せない。
+- 上部バー（閲覧用・書き込み用それぞれの接続の状態、capabilities）と、5 つのタブの枠とチャネルの一覧。停止・一時停止・書き込みのスイッチは場所だけあり、まだ押せない。
 
 ## 安全について
 
@@ -16,7 +16,7 @@
 
 ## 接続先
 
-WebSocket の接続先は、ページを配ったホストの `/ws`（`ws:` か `wss:` はページに合わせる）です。nginx が同じホストの foxglove_bridge に中継します。接続先をコードに書きません。
+閲覧用はページと同じ origin の `/ws`、書き込み用は `/ws-control` です（`ws:` か `wss:` はページに合わせる）。nginx がそれぞれ別の foxglove_bridge に中継します。接続先をコードに書きません。
 
 - 閲覧用の接続先は、URL の `?ws=ws://ホスト:ポート` で変えられます（`ws:` と `wss:` だけ）。変えたときは上部バーに接続先が出ます。
 - 閲覧用の接続先を変えたときは、書き込み用の接続は作りません。書き込み用の接続先は URL でも画面でも変えられません。
@@ -40,7 +40,10 @@ npm run test:e2e   # vite build のあと、Playwright（幅 360 px の画面の
 
 ```sh
 VIEWER_DEV_BRIDGE_URL=ws://localhost:8765
+VIEWER_DEV_CONTROL_BRIDGE_URL=ws://localhost:8766
 ```
+
+それぞれ未設定なら対応する dev proxy は作りません。
 
 試験は、`ws` で立てた偽の `foxglove.sdk.v1` サーバーとの接続試験（`test/foxgloveClient.test.ts`）、op とバイナリのフレーム、CDR の単体試験、happy-dom による画面の試験です。幅 360 px（スマートフォン）で、どのタブでも停止・一時停止が画面の中に見え、ページを下まで送っても見え続けることは、Playwright（Chromium、`e2e/`）が偽のサーバーにつないで確かめます。
 
@@ -67,6 +70,13 @@ docker compose up -d
 |---|---|---|
 | `VIEWER_PORT` | 8080 | ビューアが待ち受けるポート |
 | `VIEWER_BRIDGE_PORT` | 8765 | `/ws` の中継先。同じホストの foxglove_bridge のポート |
+| `VIEWER_CONTROL_BRIDGE_PORT` | 8766 | `/ws-control` の中継先。仮の既定で、2 本目の bridge の設定に合わせる |
+| `VIEWER_ALLOWED_ORIGINS` | 空 | 書き込み用に許可する Origin（空白区切り） |
+| `VIEWER_ALLOWED_HOSTS` | 空 | 書き込み用に許可する Host（空白区切り） |
+
+書き込み用の 2 本目の bridge はループバックだけで待ち受ける必要があり、tsukuchalle_description 側で用意します。導入前は、許可リストが設定されていれば `/ws-control` は 502 となり、書き込み用は「つなぎ直し中」のままです。停止・一時停止はまだ押せません。
+
+許可リストが空なら `/ws-control` はすべて 403 です。Host と Origin はブラウザが送るヘッダーの値をそれぞれ完全一致で照合します。値に使える文字は英数字と `._:/[]-` だけで、それ以外を含む値は無視します。例は `.env.example` を参照してください。閲覧用 `/ws` に Origin 制限はありません。
 
 `compose.yaml` は `network_mode: host` です。ブラウザからは `http://<ロボット PC>:<VIEWER_PORT>/` を開きます（Tailscale 越し）。
 
@@ -75,7 +85,7 @@ docker compose up -d
 `.github/workflows/ci.yml`
 
 - `build`（必須）: `npm ci`、`tsc --noEmit`、`eslint .`、`vitest run`、`vite build`、Playwright（Chromium だけ入れて `playwright test`）。
-- `docker`（必須ではない）: イメージを作って起動し、ページが返ることと、`/ws` が `Upgrade` と `Sec-WebSocket-Protocol` を通して偽の bridge に中継されることを確かめる。
+- `docker`（必須ではない）: イメージを作って起動し、ページが返ることと、`/ws` が `Upgrade` と `Sec-WebSocket-Protocol` を通して偽の bridge に中継されることに加え、`/ws-control` の許可された接続と Host・Origin の不一致や Origin 欠落時の 403 を確かめる。
 
 ## ライセンス
 

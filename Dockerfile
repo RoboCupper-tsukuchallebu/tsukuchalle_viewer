@@ -13,3 +13,6 @@ RUN npx vite build
 FROM nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY docker/nginx.conf.template /etc/nginx/templates/default.conf.template
+
+COPY docker/websocket-proxy.conf /etc/nginx/websocket-proxy.conf
+COPY --chmod=755 docker/15-viewer-allowlist.sh /docker-entrypoint.d/15-viewer-allowlist.sh

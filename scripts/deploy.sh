@@ -36,6 +36,6 @@ cat <<MESSAGE
 deployed ${imageName}:${imageTag} (also latest), compose.yaml and .env.example to ${robotTarget}:~/tsukuchalle_viewer/
 On the robot PC:
   cd ~/tsukuchalle_viewer
-  # cp .env.example .env   # first time only; edit VIEWER_PORT / VIEWER_BRIDGE_PORT if needed
+  # cp .env.example .env   # first time only; set bridge ports and VIEWER_ALLOWED_ORIGINS / VIEWER_ALLOWED_HOSTS
   docker compose up -d
 MESSAGE

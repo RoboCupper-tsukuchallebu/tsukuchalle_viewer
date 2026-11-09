@@ -19,14 +19,16 @@ server {
     # ページと同じ origin の /ws を、同じホストの foxglove_bridge に中継する。
     location = /ws {
         proxy_pass http://127.0.0.1:${VIEWER_BRIDGE_PORT};
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection $connection_upgrade;
-        # 副プロトコル foxglove.sdk.v1 を bridge に渡す。bridge の選んだ値は nginx が自動でブラウザに返す。
-        proxy_set_header Sec-WebSocket-Protocol $http_sec_websocket_protocol;
-        proxy_set_header Host $host;
-        proxy_read_timeout 1h;
-        proxy_send_timeout 1h;
-        proxy_buffering off;
+        include /etc/nginx/websocket-proxy.conf;
     }
+    location = /ws-control {
+        if ($viewer_origin_allowed = 0) { return 403; }
+        if ($viewer_host_allowed = 0) { return 403; }
+        # map の文字列検索は大文字小文字を区別しないため、元の値も照合する。
+        if ($http_origin != $viewer_origin_exact) { return 403; }
+        if ($http_host != $viewer_host_exact) { return 403; }
+        proxy_pass http://127.0.0.1:${VIEWER_CONTROL_BRIDGE_PORT};
+        include /etc/nginx/websocket-proxy.conf;
+    }
+
 }

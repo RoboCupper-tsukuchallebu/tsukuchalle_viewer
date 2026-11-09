@@ -20,7 +20,7 @@ export function resolveConnectionUrls(location: PageLocation): ConnectionUrls {
   if (override !== undefined && override !== sameOriginUrl) {
     return { viewingUrl: override, writingUrl: null, isViewingUrlOverridden: true };
   }
-  return { viewingUrl: sameOriginUrl, writingUrl: sameOriginUrl, isViewingUrlOverridden: false };
+  return { viewingUrl: sameOriginUrl, writingUrl: `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws-control`, isViewingUrlOverridden: false };
 }
 
 /** ws: と wss: の URL だけを受け付ける。ほかは undefined。 */
