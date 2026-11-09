@@ -11,6 +11,7 @@ import { startTopBarStatus } from "../../src/panels/status/topBarStatus.ts";
 import { createTopBar } from "../../src/layout/topBar.ts";
 import { bindClientToTopicStore } from "../../src/store/channelBinding.ts";
 import { DiagnosticsStore } from "../../src/store/diagnosticsStore.ts";
+import { localizationBytes, localizationMessage } from "../fixtures/status/localizationFixture.ts";
 import { TopicStore } from "../../src/store/topicStore.ts";
 
 class TestClient extends FoxgloveClient {
@@ -48,6 +49,53 @@ test("実物の障害物定義の CDR が手組みのバイト列と一致する
   const encode = createCdrEncoder(schema("ObstacleStatus"));
   const bytes = encode({ header: { stamp: { sec: 1, nanosec: 2 }, frame_id: "a" }, is_stop_zone_occupied: true, is_slow_zone_occupied: false, is_input_stale: true, stale_sources: ["x"], stop_zone_cell_count: 3, slow_zone_cell_count: 4, nearest_distance_m: Infinity, processing_time_ms: 1 });
   expect([...bytes]).toEqual([0,1,0,0, 1,0,0,0, 2,0,0,0, 2,0,0,0, 97,0, 1,0,1,0,0,0, 1,0,0,0, 2,0,0,0, 120,0,0,0, 3,0,0,0, 4,0,0,0, 0,0,128,127, 0,0,128,63]);
+});
+
+test("自己位置定義の CDR が本番 bridge 由来ではない手組みバイト列と一致する", () => {
+  const bytes = createCdrEncoder(schema("LocalizationStatus"))(localizationMessage);
+  expect(bytes).toEqual(localizationBytes);
+});
+
+test("選択中は再描画を保留し、選択解除で最新値を表示する", () => {
+  // Arrange
+  const context = setup();
+  const container = document.createElement("div");
+  document.body.append(container);
+  const stop = mountPanel(container, context);
+  context.topicStore.put(topicNames.localizationStatus, { state: 1 }, 0n);
+  const value = container.querySelector("dd");
+  if (!value) {
+    throw new Error("値が表示されていません");
+  }
+  const range = document.createRange();
+  range.selectNodeContents(value);
+  const selection = window.getSelection();
+  if (!selection) {
+    throw new Error("選択を取得できません");
+  }
+  selection.removeAllRanges();
+  selection.addRange(range);
+  // Act・Assert
+  context.topicStore.put(topicNames.localizationStatus, { state: 4 }, 0n);
+  expect(container.querySelector("dd")).toBe(value);
+  selection.removeAllRanges();
+  document.dispatchEvent(new Event("selectionchange"));
+  expect(container.textContent).toContain("LOST (4)");
+  expect(container.querySelector("dd")).not.toBe(value);
+  stop();
+  container.remove();
+});
+
+test("選択が無いとき定期更新で古さを表示する", () => {
+  vi.useFakeTimers();
+  const context = setup();
+  const container = document.createElement("div");
+  const stop = mountPanel(container, context);
+  context.topicStore.put(topicNames.localizationStatus, { state: 1 }, 0n);
+  vi.advanceTimersByTime(6000);
+  expect(container.textContent).toContain("受信データが古い");
+  stop();
+  vi.useRealTimers();
 });
 
 test("実物の自己位置定義をチャネル経由で表示し、将来のフィールドも表示する", () => {

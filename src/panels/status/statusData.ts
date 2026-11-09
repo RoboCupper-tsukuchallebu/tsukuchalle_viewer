@@ -1,10 +1,15 @@
 import { staleThresholdMs, topicNames } from "../../config.ts";
+import type { EncodedChannel } from "../../decoding/channelDecoder.ts";
 import type { TopicEntry } from "../../store/topicStore.ts";
 
 export const statusStaleThresholdMs = staleThresholdMs.status;
 const localizationStates = ["INITIALIZING", "TRACKING", "GPS_ONLY", "ODOM_ONLY", "LOST", "INPUT_STALE"];
 const followStates = ["OK", "NO_PATH", "POSE_STALE", "OBSTACLE_STALE", "BLOCKED", "AT_PATH_END", "STUCK"];
 const followLayers = ["LAYER_FOLLOW", "LAYER_AVOID", "LAYER_NONE"];
+
+export function isSchemaMissing(channel: EncodedChannel): boolean {
+  return channel.encoding === "" || (channel.encoding === "cdr" && !channel.schema);
+}
 
 export function isStale(entry: TopicEntry, now = Date.now()): boolean {
   return now - entry.receivedAtMs > statusStaleThresholdMs;

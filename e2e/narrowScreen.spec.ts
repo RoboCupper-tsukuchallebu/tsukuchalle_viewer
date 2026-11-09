@@ -1,3 +1,6 @@
+import { readFileSync } from "node:fs";
+import { createCdrEncoder } from "../src/decoding/channelDecoder.ts";
+import { localizationBytes, localizationMessage } from "../test/fixtures/status/localizationFixture.ts";
 import { expect, test, type Page } from "@playwright/test";
 import { tabDefinitions } from "../src/layout/tabs.ts";
 import { FakeFoxgloveServer, sampleChannel } from "../test/support/fakeFoxgloveServer.ts";
@@ -86,6 +89,30 @@ test("幅 360 px の状態パネルで長い診断値を表示しても操作が
   // Arrange
   await openViewerConnectedToFakeBridge(page, "status");
   await expect(page.locator(".status-panel")).toBeVisible();
+  const schema = readFileSync("test/fixtures/status/LocalizationStatus.msg", "utf8") + `
+================================================================================
+MSG: std_msgs/Header
+builtin_interfaces/Time stamp
+string frame_id
+================================================================================
+MSG: builtin_interfaces/Time
+int32 sec
+uint32 nanosec
+`;
+  server.sendJson({ op: "advertise", channels: [{ id: 201, topic: "/lightnav/localization/status", encoding: "cdr", schemaName: "lightnav_msgs/msg/LocalizationStatus", schema, schemaEncoding: "ros2msg" }] });
+  await expect.poll(() => findSubscription(201)).toBeDefined();
+  const localizationSubscription = findSubscription(201);
+  if (!localizationSubscription) {
+    throw new Error("自己位置の購読が見つかりません");
+  }
+  const localizationHeader = Buffer.alloc(13);
+  localizationHeader.writeUInt8(1, 0);
+  localizationHeader.writeUInt32LE(localizationSubscription.id, 1);
+  server.sendBinary(Buffer.concat([localizationHeader, localizationBytes]));
+  await expect(page.locator(".top-bar-localization")).toContainText("TRACKING");
+  const longMessage = createCdrEncoder(schema)({ ...localizationMessage, last_error: "long_error_".repeat(40) });
+  server.sendBinary(Buffer.concat([localizationHeader, longMessage]));
+  await expect(page.locator(".status-panel")).toContainText("long_error_");
   server.sendJson({ op: "advertise", channels: [{ id: 200, topic: "/diagnostics", encoding: "json", schemaName: "diagnostics", schema: "" }] });
   await expect.poll(() => findSubscription(200)).toBeDefined();
   const subscription = findSubscription(200);
@@ -100,11 +127,5 @@ test("幅 360 px の状態パネルで長い診断値を表示しても操作が
   server.sendBinary(Buffer.concat([header, payload]));
   // Assert
   await expect(page.locator(".status-panel")).toContainText("long_value_");
-  await page.locator(".status-fields dd").first().hover();
-  await page.locator(".top-bar-localization").evaluate((element) => { element.textContent = "長い自己位置情報".repeat(50); });
   await expectStopControlsReachable(page);
-  for (const control of ["stop", "pause"]) {
-    const button = page.locator(`[data-control="${control}"]`);
-    if (await button.isEnabled()) await button.click();
-  }
 });

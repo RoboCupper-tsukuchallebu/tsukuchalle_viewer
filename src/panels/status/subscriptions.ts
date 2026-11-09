@@ -7,12 +7,20 @@ export function subscribeAvailable(client: FoxgloveClient, binding: ChannelBindi
   const update = () => {
     for (const topic of topics) {
       const available = [...client.channels.values()].some((channel) => channel.topic === topic && binding.decoderFor(channel).isDecodable);
-      if (available && !releases.has(topic)) releases.set(topic, client.subscribeToTopic(topic));
-      if (!available && releases.has(topic)) { releases.get(topic)?.(); releases.delete(topic); }
+      if (available && !releases.has(topic)) {
+        releases.set(topic, client.subscribeToTopic(topic));
+      }
+      if (!available && releases.has(topic)) {
+        releases.get(topic)?.();
+        releases.delete(topic);
+      }
     }
     render();
   };
   const stop = client.on("channelsChanged", update);
   update();
-  return () => { stop(); releases.forEach((release) => { release(); }); };
+  return () => {
+    stop();
+    releases.forEach((release) => { release(); });
+  };
 }
