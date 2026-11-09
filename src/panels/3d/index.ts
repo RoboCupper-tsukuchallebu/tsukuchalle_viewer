@@ -1,4 +1,5 @@
 import type { MountPanel } from "../../layout/panelContext.ts";
+import { createMarkerController } from "./markerController.ts";
 import { attachClickHandler } from "./clickHandler.ts";
 import { attachOverlays, registerRobotPoseProvider } from "./viewApi.ts";
 import { createCloudController } from "./cloudController.ts";
@@ -62,6 +63,7 @@ export const mountPanel: MountPanel = (container, context) => {
     });
   };
   const frameSelection = createFrameSelection(select, transformTree, refresh);
+  releases.push(createMarkerController(form.root, scene, context, transformTree, () => frameSelection.selectedFrame));
   const clouds = createCloudController(scene, context, form, report, refresh);
   releases.push(subscribeTransforms(context, transformTree, report, () => { frameSelection.update(); }));
   frameSelection.update();
