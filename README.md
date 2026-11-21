@@ -134,7 +134,7 @@ lightnav_sim と書き込み用 bridge を起動し、点群を購読したま�
 | トピック | 出どころ |
 |---|---|
 | `/tf` `/tf_static` | 各ノード |
-| `/wheel/odom` | tsukuchalle_drivers |
+| `/wheel/odom` `/wheel/motor_states` | tsukuchalle_drivers（`motor_states` は各モーターの回転速度・電流・角度の生データ） |
 | `/joint_states` | tsukuchalle_description |
 | `/joy` `/cmd_vel` `/cmd_vel_teleop` `/cmd_vel_mux` | 操縦入力と駆動への指令 |
 | `/velodyne_points` | tsukuchalle_drivers |
@@ -145,6 +145,6 @@ lightnav_sim と書き込み用 bridge を起動し、点群を購読したま�
 
 - 容量は `/velodyne_points` が大半で、およそ 15 MB/s（1 時間で約 55 GB）です。記録の前に `BAGS_DIR` の空きを確かめてください。
 - drivers のイメージに型が無いトピックは記録できないので入れていません（`lightnav_msgs` の status、`/velodyne_packets`）。
-- 記録の開始時に出ていないトピックは、出始めてから記録されます。車輪の rpm や電流などの生データは、駆動ノードが出していないので記録されません。
+- 記録の開始時に出ていないトピックは、出始めてから記録されます。`/wheel/motor_states` は、これを出す版の drivers がロボット PC に入っているときだけ記録されます。
 
 サービス管理の単体試験は `python3 -m unittest discover -s service-manager` で実行します。現在の CI にはこの試験が含まれていません。
