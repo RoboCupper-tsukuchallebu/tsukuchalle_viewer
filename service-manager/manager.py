@@ -10,7 +10,24 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 IDS = {"drive", "teleop", "joy", "mux", "nav", "localization_mapping", "localization_localization", "bag_record"}
-TOPICS = ["/tf", "/tf_static", "/odom", "/cmd_vel", "/velodyne_points", "/lightnav/localization/map_cloud", "/lightnav/localization/path"]
+# Fixed list of recorded topics (Issue #12). Only topics whose message types exist in the drivers image:
+# lightnav_msgs (status topics) and velodyne_msgs (/velodyne_packets) are not in it.
+# A topic that nobody publishes yet is recorded from the moment it appears (ros2 bag record discovery).
+TOPICS = (
+    "/tf", "/tf_static",
+    # tsukuchalle_drivers publishes /wheel/odom (there is no /odom). /joint_states comes from tsukuchalle_description.
+    "/wheel/odom", "/joint_states",
+    "/joy", "/cmd_vel", "/cmd_vel_teleop", "/cmd_vel_mux",
+    "/velodyne_points",
+    # datagnss-ma10p-ros2: the receiver's own solution, raw NMEA, and the RTKLIB solution.
+    "/fix", "/fix_all", "/nmea", "/rtk/fix", "/rtk/fix_all",
+    # spresense-imu-ros2.
+    "/imu/data_raw", "/imu/data", "/imu/odom", "/imu/localization/odom", "/imu/stationary", "/imu/temperature",
+    "/diagnostics", "/system/low_battery",
+    # lightweight-nav-stack (standard message types only).
+    "/lightnav/localization/odom", "/lightnav/localization/map_cloud", "/lightnav/localization/path",
+    "/lightnav/pose", "/lightnav/local_grid",
+)
 ACTION_LOCK = threading.Lock()
 STATUS_LOCK = threading.Lock()
 

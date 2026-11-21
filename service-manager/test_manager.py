@@ -64,6 +64,16 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             manager.action("bag_record", "start")
 
+    def test_bag_topics_match_published_names(self):
+        topics = manager_module.TOPICS
+        # 駆動ノードが出すのは /wheel/odom で、/odom は誰も出していない（Issue #12）。
+        self.assertIn("/wheel/odom", topics)
+        self.assertNotIn("/odom", topics)
+        for required in ("/tf", "/tf_static", "/velodyne_points", "/joy", "/rtk/fix_all", "/imu/data_raw", "/diagnostics"):
+            self.assertIn(required, topics)
+        self.assertEqual(len(topics), len(set(topics)))
+        self.assertTrue(all(topic.startswith("/") and " " not in topic for topic in topics))
+
     def test_requests(self):
         manager_module.Handler.manager = manager_module.Manager(SERVICE_CONFIG, TEST_ENVIRONMENT)
         server = ThreadingHTTPServer(("127.0.0.1", 0), manager_module.Handler)
