@@ -15,8 +15,9 @@ IDS = {"drive", "teleop", "joy", "mux", "nav", "localization_mapping", "localiza
 # A topic that nobody publishes yet is recorded from the moment it appears (ros2 bag record discovery).
 TOPICS = (
     "/tf", "/tf_static",
-    # tsukuchalle_drivers publishes /wheel/odom (there is no /odom). /joint_states comes from tsukuchalle_description.
-    "/wheel/odom", "/joint_states",
+    # tsukuchalle_drivers publishes /wheel/odom (there is no /odom) and the raw motor feedback (/wheel/motor_states).
+    # /joint_states comes from tsukuchalle_description.
+    "/wheel/odom", "/wheel/motor_states", "/joint_states",
     "/joy", "/cmd_vel", "/cmd_vel_teleop", "/cmd_vel_mux",
     "/velodyne_points",
     # datagnss-ma10p-ros2: the receiver's own solution, raw NMEA, and the RTKLIB solution.

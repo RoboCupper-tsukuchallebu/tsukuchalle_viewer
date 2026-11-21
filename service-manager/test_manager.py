@@ -69,7 +69,7 @@ class Tests(unittest.TestCase):
         # 駆動ノードが出すのは /wheel/odom で、/odom は誰も出していない（Issue #12）。
         self.assertIn("/wheel/odom", topics)
         self.assertNotIn("/odom", topics)
-        for required in ("/tf", "/tf_static", "/velodyne_points", "/joy", "/rtk/fix_all", "/imu/data_raw", "/diagnostics"):
+        for required in ("/tf", "/tf_static", "/wheel/motor_states", "/velodyne_points", "/joy", "/rtk/fix_all", "/imu/data_raw", "/diagnostics"):
             self.assertIn(required, topics)
         self.assertEqual(len(topics), len(set(topics)))
         self.assertTrue(all(topic.startswith("/") and " " not in topic for topic in topics))
