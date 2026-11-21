@@ -129,4 +129,22 @@ lightnav_sim と書き込み用 bridge を起動し、点群を購読したま�
 
 地図作成と自己位置推定の切り替えには、実行中の localization を先に停止してください。停止は Compose の SIGINT と猶予時間を使い地図の保存を待ちます。地図作成は既存の地図を上書きします。rosbag は固定トピックを `BAGS_DIR` に記録し、停止時は SIGINT で終了を待ちます。記録には drivers のイメージが必要です。
 
+記録するトピック（`service-manager/manager.py` の `TOPICS`。画面からは変えられません）:
+
+| トピック | 出どころ |
+|---|---|
+| `/tf` `/tf_static` | 各ノード |
+| `/wheel/odom` | tsukuchalle_drivers |
+| `/joint_states` | tsukuchalle_description |
+| `/joy` `/cmd_vel` `/cmd_vel_teleop` `/cmd_vel_mux` | 操縦入力と駆動への指令 |
+| `/velodyne_points` | tsukuchalle_drivers |
+| `/fix` `/fix_all` `/nmea` `/rtk/fix` `/rtk/fix_all` | datagnss-ma10p-ros2 |
+| `/imu/data_raw` `/imu/data` `/imu/odom` `/imu/localization/odom` `/imu/stationary` `/imu/temperature` | spresense-imu-ros2 |
+| `/diagnostics` `/system/low_battery` | 各ノード、host_monitor |
+| `/lightnav/localization/odom` `/lightnav/localization/map_cloud` `/lightnav/localization/path` `/lightnav/pose` `/lightnav/local_grid` | lightweight-nav-stack |
+
+- 容量は `/velodyne_points` が大半で、およそ 15 MB/s（1 時間で約 55 GB）です。記録の前に `BAGS_DIR` の空きを確かめてください。
+- drivers のイメージに型が無いトピックは記録できないので入れていません（`lightnav_msgs` の status、`/velodyne_packets`）。
+- 記録の開始時に出ていないトピックは、出始めてから記録されます。車輪の rpm や電流などの生データは、駆動ノードが出していないので記録されません。
+
 サービス管理の単体試験は `python3 -m unittest discover -s service-manager` で実行します。現在の CI にはこの試験が含まれていません。
