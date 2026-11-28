@@ -85,3 +85,28 @@ export const storageKeys = {
   selected3dFrame: "tsukuchalle-viewer.selected3dFrame",
   selectedTab: "tsukuchalle-viewer.selectedTab",
 } as const;
+
+// 手動走行の最大の速さ（Issue #16）。上限の数（0.6・1.5 など）はロボット側の設定ファイルだけが持つ。ここには書かない。
+const teleopNode = "/teleop_twist_joy_node";
+
+export const teleopSpeedParameterNames = {
+  /** 直進の最大の速さ（m/s）。読む・書く。 */
+  linear: `${teleopNode}.scale_linear.x`,
+  /** 旋回の最大の速さ（rad/s）。読む・書く。 */
+  angular: `${teleopNode}.scale_angular.yaw`,
+  /** ロボット側の上限（m/s）。読むだけ。 */
+  linearLimit: `${teleopNode}.scale_linear_limit.x`,
+  /** ロボット側の上限（rad/s）。読むだけ。 */
+  angularLimit: `${teleopNode}.scale_angular_limit.yaw`,
+} as const;
+
+export const teleopSpeedSlider = {
+  linear: { minimum: 0.1, step: 0.05, fractionDigits: 2, unit: "m/s" },
+  angular: { minimum: 0.3, step: 0.1, fractionDigits: 1, unit: "rad/s" },
+} as const;
+
+/** 今の値を読み直す間隔。前の返事が来るまでは次を送らない。 */
+export const teleopSpeedPollIntervalMs = 2000;
+
+/** setParameters の返事を待つ時間。ブリッジの待ち時間（5 秒 + 5 秒）より長くする。 */
+export const teleopSpeedSetTimeoutMs = 12_000;
