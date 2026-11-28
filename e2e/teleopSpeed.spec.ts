@@ -15,7 +15,7 @@ let server: FakeFoxgloveServer;
 test.beforeEach(async () => {
   server = await FakeFoxgloveServer.start();
   server.parameterModel = {
-    values: { [names.linear]: 0.6, [names.angular]: 1.5, [names.linearLimit]: 1.5, [names.angularLimit]: 4 },
+    values: { [names.linear]: 0.6, [names.angular]: 1.5, [names.linearLimit]: 1.2, [names.angularLimit]: 3 },
     writableLimitNames: { [names.linear]: names.linearLimit, [names.angular]: names.angularLimit },
     isResponding: true,
     isRejectingEverything: false,

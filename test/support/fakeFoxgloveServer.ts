@@ -16,6 +16,8 @@ export type FakeParameterModel = {
   isResponding: boolean;
   /** true なら、どんな設定も拒む。 */
   isRejectingEverything: boolean;
+  /** true なら、setParameters に空の一覧を返す（ノードが応答せず、ブリッジが空の返事を返すとき）。 */
+  isReturningEmptyListForSet?: boolean;
 };
 
 export type ReceivedFrame = { connectionIndex: number; json?: Record<string, unknown>; binary?: Buffer };
@@ -79,7 +81,9 @@ export class FakeFoxgloveServer {
     } else {
       return;
     }
-    const parameters = requestedNames.flatMap((name) => (name in model.values ? [{ name, value: model.values[name] }] : []));
+    // 本物のブリッジは、小数の値に type: "float64" を付けて返す。
+    const isEmptyAnswer = message["op"] === "setParameters" && model.isReturningEmptyListForSet === true;
+    const parameters = isEmptyAnswer ? [] : requestedNames.flatMap((name) => (name in model.values ? [{ name, value: model.values[name], type: "float64" }] : []));
     socket.send(JSON.stringify({ op: "parameterValues", parameters, id: message["id"] }));
   }
 

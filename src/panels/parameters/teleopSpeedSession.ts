@@ -1,7 +1,8 @@
-import { teleopSpeedPollIntervalMs, teleopSpeedReadTimeoutMs, teleopSpeedSetTimeoutMs } from "../../config.ts";
-import type { FoxgloveClient } from "../../connection/foxgloveClient.ts";
+import { teleopSpeedParameterNames, teleopSpeedPollIntervalMs, teleopSpeedReadTimeoutMs, teleopSpeedSetTimeoutMs } from "../../config.ts";
+import { ParameterRequestTimeoutError, type FoxgloveClient } from "../../connection/foxgloveClient.ts";
 import type { Parameter } from "../../connection/protocol.ts";
 import {
+  formatSpeed,
   judgeChangeResponse,
   parseTeleopSpeedReading,
   speedAxes,
@@ -9,26 +10,24 @@ import {
   type SpeedAxis,
   type TeleopSpeedReading,
 } from "../../control/teleopSpeed.ts";
-import { teleopSpeedParameterNames } from "../../config.ts";
 
-export type ApplyOutcome = { readonly messages: readonly string[]; readonly isError: boolean };
-
-const timeoutErrorMessage = "timeout";
-const disconnectedErrorMessage = "disconnected";
-
-function withTimeout<Result>(pending: Promise<Result>, timeoutMs: number): Promise<Result> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error(timeoutErrorMessage));
-    }, timeoutMs);
-  });
-  return Promise.race([pending, timeout]).finally(() => {
-    clearTimeout(timer);
-  });
-}
+export type ApplyOutcome = {
+  readonly messages: readonly string[];
+  readonly isError: boolean;
+  /** ロボットが受け付けた軸。選んだ値を捨ててよいのは、この軸だけ。 */
+  readonly acceptedAxes: readonly SpeedAxis[];
+};
 
 const axisLabels: Record<SpeedAxis, string> = { linear: "直進", angular: "旋回" };
+const parameterNameByAxis: Record<SpeedAxis, string> = {
+  linear: teleopSpeedParameterNames.linear,
+  angular: teleopSpeedParameterNames.angular,
+};
+
+function numberValueOf(parameters: readonly Parameter[], name: string): number | undefined {
+  const value = parameters.find((parameter) => parameter.name === name)?.value;
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
 
 /**
  * 手動走行の最大の速さの、読み直しと書き込み。画面（DOM）は知らない。
@@ -41,10 +40,12 @@ export class TeleopSpeedSession {
 
   readonly #client: FoxgloveClient | null;
   readonly #onChange: () => void;
+  readonly #unsubscribers: (() => void)[] = [];
   #isReading = false;
+  /** 適用の開始と終了で増える。この間に始まった読み直しの結果は捨てる（古い値で上書きしない）。 */
+  #writeGeneration = 0;
   #pollTimer: ReturnType<typeof setInterval> | undefined;
   #isDisposed = false;
-  readonly #unsubscribers: (() => void)[] = [];
 
   constructor(client: FoxgloveClient | null, onChange: () => void) {
     this.#client = client;
@@ -79,17 +80,18 @@ export class TeleopSpeedSession {
     this.#unsubscribers.length = 0;
   }
 
-  /** 前の読み直しの返事が来るまでは、次を送らない。 */
+  /** 前の読み直しの返事が来るまでと、適用の返事を待っている間は、送らない。 */
   async readNow(): Promise<void> {
     const client = this.#client;
-    if (client === null || this.#isReading || !this.#isActive() || !this.isConnected || !this.isParametersAdvertised) {
+    if (client === null || this.#isReading || this.isWaitingForResponse || !this.#isActive() || !this.isConnected || !this.isParametersAdvertised) {
       return;
     }
     this.#isReading = true;
+    const generationAtStart = this.#writeGeneration;
     try {
-      const parameters = await withTimeout(client.getParameters(teleopSpeedParameterNamesToRead()), teleopSpeedReadTimeoutMs);
-      const reading = parseTeleopSpeedReading(parameters);
-      if (this.#isActive()) {
+      const parameters = await client.getParameters(teleopSpeedParameterNamesToRead(), teleopSpeedReadTimeoutMs);
+      if (this.#isActive() && generationAtStart === this.#writeGeneration) {
+        const reading = parseTeleopSpeedReading(parameters);
         this.reading = reading ?? undefined;
         this.lastReadAtMs = reading === null ? undefined : Date.now();
       }
@@ -107,17 +109,19 @@ export class TeleopSpeedSession {
   async apply(parameters: Parameter[], requested: Partial<Record<SpeedAxis, number>>): Promise<ApplyOutcome> {
     const client = this.#client;
     if (client === null || this.isWaitingForResponse) {
-      return { messages: ["送れませんでした"], isError: true };
+      return { messages: ["送れませんでした"], isError: true, acceptedAxes: [] };
     }
     this.isWaitingForResponse = true;
+    this.#writeGeneration += 1;
     this.#onChange();
     try {
-      const response = await withTimeout(client.setParameters(parameters), teleopSpeedSetTimeoutMs);
+      const response = await client.setParameters(parameters, teleopSpeedSetTimeoutMs);
       return this.#interpretResponse(requested, response);
     } catch (error) {
       return this.#interpretFailure(error);
     } finally {
       this.isWaitingForResponse = false;
+      this.#writeGeneration += 1;
       if (this.#isActive()) {
         this.#onChange();
       }
@@ -126,48 +130,59 @@ export class TeleopSpeedSession {
 
   #interpretResponse(requested: Partial<Record<SpeedAxis, number>>, response: readonly Parameter[]): ApplyOutcome {
     const judgement = judgeChangeResponse(requested, response);
-    this.#mergeReturnedValues(response);
+    this.#mergeReturnedValues(requested, response);
     const messages: string[] = [];
-    let isError = false;
+    const acceptedAxes: SpeedAxis[] = [];
     for (const axis of speedAxes) {
       if (judgement[axis] === "accepted") {
+        acceptedAxes.push(axis);
         messages.push(`${axisLabels[axis]}: 変えました`);
       } else if (judgement[axis] === "rejected") {
-        isError = true;
-        messages.push(`${axisLabels[axis]}: ロボットが受け付けませんでした`);
+        const currentValue = this.reading?.current[axis];
+        const currentText = currentValue === undefined ? "" : `（今の値: ${formatSpeed(axis, currentValue)}）`;
+        messages.push(`${axisLabels[axis]}: ロボットが受け付けませんでした${currentText}`);
       }
     }
-    return { messages, isError };
+    return { messages, isError: acceptedAxes.length < Object.keys(requested).length, acceptedAxes };
   }
 
-  /** 返ってきた今の値を、読み戻した値として取り込む。 */
-  #mergeReturnedValues(response: readonly Parameter[]): void {
-    if (this.reading === undefined) {
-      return;
+  /**
+   * 返ってきた今の値を取り込む。「最後に読めた時刻」を更新するのは、頼んだ名前の値がすべて返ってきたときだけ。
+   * 空の返事（ノードが応答せず、ブリッジが空の一覧を返すとき）で、知らない値を新しいと見せない。
+   * 値がそろわなかったときは、すぐ読み直す。
+   */
+  #mergeReturnedValues(requested: Partial<Record<SpeedAxis, number>>, response: readonly Parameter[]): void {
+    const requestedAxes = speedAxes.filter((axis) => requested[axis] !== undefined);
+    const returnedAxes = requestedAxes.filter((axis) => numberValueOf(response, parameterNameByAxis[axis]) !== undefined);
+    if (this.reading !== undefined) {
+      this.reading = {
+        ...this.reading,
+        current: {
+          linear: numberValueOf(response, teleopSpeedParameterNames.linear) ?? this.reading.current.linear,
+          angular: numberValueOf(response, teleopSpeedParameterNames.angular) ?? this.reading.current.angular,
+        },
+      };
     }
-    const returnedValue = (name: string): number | undefined => {
-      const value = response.find((parameter) => parameter.name === name)?.value;
-      return typeof value === "number" && Number.isFinite(value) ? value : undefined;
-    };
-    this.reading = {
-      ...this.reading,
-      current: {
-        linear: returnedValue(teleopSpeedParameterNames.linear) ?? this.reading.current.linear,
-        angular: returnedValue(teleopSpeedParameterNames.angular) ?? this.reading.current.angular,
-      },
-    };
-    this.lastReadAtMs = Date.now();
+    if (returnedAxes.length === requestedAxes.length) {
+      this.lastReadAtMs = Date.now();
+    } else {
+      queueMicrotask(() => {
+        void this.readNow();
+      });
+    }
   }
 
   #interpretFailure(error: unknown): ApplyOutcome {
-    if (error instanceof Error && error.message === timeoutErrorMessage) {
-      void this.readNow();
-      return { messages: ["応答がありません"], isError: true };
+    if (error instanceof ParameterRequestTimeoutError) {
+      queueMicrotask(() => {
+        void this.readNow();
+      });
+      return { messages: ["応答がありません"], isError: true, acceptedAxes: [] };
     }
-    if (error instanceof Error && error.message === disconnectedErrorMessage) {
-      return { messages: ["接続が切れました。変わったかどうか分かりません"], isError: true };
+    if (error instanceof Error && error.message === "disconnected") {
+      return { messages: ["接続が切れました。変わったかどうか分かりません"], isError: true, acceptedAxes: [] };
     }
-    return { messages: ["送れませんでした"], isError: true };
+    return { messages: ["送れませんでした"], isError: true, acceptedAxes: [] };
   }
 
   #isActive(): boolean {

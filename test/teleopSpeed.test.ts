@@ -16,14 +16,14 @@ function readingWith(limits: { linear: number; angular: number }, current: { lin
 
 describe("送る内容（V1・V2）", () => {
   test("変わるものだけが入り、どの値にも float64 が付く", () => {
-    const reading = readingWith({ linear: 1.5, angular: 4 }, { linear: 0.6, angular: 1.5 });
+    const reading = readingWith({ linear: 1.2, angular: 3 }, { linear: 0.6, angular: 1.5 });
     const request = buildChangeRequest({ linear: 1.0, angular: 1.5 }, reading);
     expect(request).toMatchObject({ isValid: true, parameters: [{ name: names.linear, value: 1, type: "float64" }] });
     expect(JSON.stringify(request.isValid ? request.parameters : [])).toContain('"value":1,');
   });
 
   test("小数に見える値にも float64 が付く", () => {
-    const reading = readingWith({ linear: 1.5, angular: 4 }, { linear: 1.0, angular: 1.0 });
+    const reading = readingWith({ linear: 1.2, angular: 3 }, { linear: 1.0, angular: 1.0 });
     const request = buildChangeRequest({ linear: 0.6, angular: 2.0 }, reading);
     expect(request.isValid && request.parameters).toEqual([
       { name: names.linear, value: 0.6, type: "float64" },
@@ -32,7 +32,7 @@ describe("送る内容（V1・V2）", () => {
   });
 
   test("最小未満・数でない値は送らない", () => {
-    const reading = readingWith({ linear: 1.5, angular: 4 }, { linear: 0.6, angular: 1.5 });
+    const reading = readingWith({ linear: 1.2, angular: 3 }, { linear: 0.6, angular: 1.5 });
     expect(buildChangeRequest({ linear: 0.05, angular: 1.5 }, reading).isValid).toBe(false);
     expect(buildChangeRequest({ linear: Number.NaN, angular: 1.5 }, reading).isValid).toBe(false);
     expect(buildChangeRequest({ linear: 0.6, angular: 0.2 }, reading).isValid).toBe(false);
@@ -45,7 +45,7 @@ describe("送る内容（V1・V2）", () => {
   });
 
   test("浮動小数点の誤差を丸めて送る", () => {
-    const reading = readingWith({ linear: 1.5, angular: 4 }, { linear: 0.6, angular: 1.5 });
+    const reading = readingWith({ linear: 1.2, angular: 3 }, { linear: 0.6, angular: 1.5 });
     const request = buildChangeRequest({ linear: 0.1 + 0.2, angular: 1.5 }, reading);
     expect(request.isValid && request.parameters[0]?.value).toBe(0.3);
   });
@@ -73,10 +73,10 @@ describe("読み戻し", () => {
     const all = [
       { name: names.linear, value: 0.6 },
       { name: names.angular, value: 1.5 },
-      { name: names.linearLimit, value: 0.6 },
-      { name: names.angularLimit, value: 1.5 },
+      { name: names.linearLimit, value: 0.9 },
+      { name: names.angularLimit, value: 2 },
     ];
-    expect(parseTeleopSpeedReading(all)).toEqual({ current: { linear: 0.6, angular: 1.5 }, limits: { linear: 0.6, angular: 1.5 } });
+    expect(parseTeleopSpeedReading(all)).toEqual({ current: { linear: 0.6, angular: 1.5 }, limits: { linear: 0.9, angular: 2 } });
     expect(parseTeleopSpeedReading(all.slice(0, 3))).toBeNull();
     expect(parseTeleopSpeedReading([...all.slice(0, 3), { name: names.angularLimit, value: "x" }])).toBeNull();
   });
@@ -91,7 +91,7 @@ describe("古さの判定（V4）", () => {
 });
 
 describe("適用できない理由", () => {
-  const reading = readingWith({ linear: 0.6, angular: 1.5 }, { linear: 0.6, angular: 1.5 });
+  const reading = readingWith({ linear: 0.9, angular: 2 }, { linear: 0.6, angular: 1.5 });
   const ready: ApplyConditionInput = {
     isWriteEnabled: true, hasWritingConnection: true, isWritingConnected: true, isParametersAdvertised: true,
     reading, isStale: false, selection: { linear: 0.4, angular: 1.5 }, isWaitingForResponse: false,

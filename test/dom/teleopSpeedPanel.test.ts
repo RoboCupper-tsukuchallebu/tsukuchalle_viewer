@@ -28,9 +28,9 @@ function robotParameters(limits: { linear: number; angular: number }, current = 
   };
 }
 
-async function waitUntil(predicate: () => boolean, label: string): Promise<void> {
+async function waitUntil(predicate: () => boolean, label: string, timeoutMs = 2000): Promise<void> {
   // 偽の時計を使う試験があるので、setTimeout と Date は使わない。
-  const deadline = performance.now() + 2000;
+  const deadline = performance.now() + timeoutMs;
   while (performance.now() < deadline) {
     if (predicate()) {
       return;
@@ -74,7 +74,7 @@ const clickDialog = (role: "confirm" | "cancel"): void => {
   document.querySelector<HTMLButtonElement>(`[data-role="${role}"]`)?.click();
 };
 
-async function mountWithRobot(model = robotParameters({ linear: 1.5, angular: 4 })): Promise<void> {
+async function mountWithRobot(model = robotParameters({ linear: 1.2, angular: 3 })): Promise<void> {
   server.parameterModel = model;
   client = new FoxgloveClient({
     url: server.url,
@@ -139,13 +139,13 @@ describe("偽のサーバーとの試験", () => {
     void untypedResponse;
 
     // Assert
-    expect(returned).toEqual([{ name: names.linear, value: 0.6 }]);
-    expect(overLimit).toEqual([{ name: names.linear, value: 0.6 }]);
+    expect(returned).toEqual([{ name: names.linear, value: 0.6, type: "float64" }]);
+    expect(overLimit).toEqual([{ name: names.linear, value: 0.6, type: "float64" }]);
   });
 
   test("V14: ロボットが拒むと「受け付けませんでした」と前の値が出る", async () => {
     // Arrange
-    const model = robotParameters({ linear: 1.5, angular: 4 });
+    const model = robotParameters({ linear: 1.2, angular: 3 });
     model.isRejectingEverything = true;
     await mountWithRobot(model);
     await waitUntil(() => field("linear-current").textContent.includes("0.60"), "今の値");
@@ -160,11 +160,77 @@ describe("偽のサーバーとの試験", () => {
 
     // Assert
     expect(field("linear-current").textContent).toContain("0.60 m/s");
+    expect(statusLine()).toContain("今の値: 0.60 m/s");
+    expect((field("linear-slider") as HTMLInputElement).value).toBe("0.4");
+  });
+
+  test("V14: 読んだあとにロボットの上限が下がっていて、上限を超える値を拒まれると、受け付けませんでした・前の値・選んだ値が残る", async () => {
+    // Arrange
+    const model = robotParameters({ linear: 1.2, angular: 3 });
+    await mountWithRobot(model);
+    await waitUntil(() => field("linear-current").textContent.includes("0.60"), "今の値");
+    writeGate.enable();
+    moveSlider("linear", 1.0);
+    button("適用").click();
+    await waitUntil(() => confirmDialog() !== null, "確認の画面");
+    model.values[names.linearLimit] = 0.8; // 次の読み直しの前に、ロボットの上限が下がった
+
+    // Act
+    clickDialog("confirm");
+    await waitUntil(() => statusLine().includes("受け付けませんでした"), "結果");
+
+    // Assert
+    expect(setRequests()).toHaveLength(1);
+    expect(model.values[names.linear]).toBe(0.6);
+    expect(statusLine()).toContain("今の値: 0.60 m/s");
+    expect(field("linear-current").textContent).toContain("0.60 m/s");
+    expect((field("linear-slider") as HTMLInputElement).value).toBe("1");
+  });
+
+  test("確認の画面を開いている間に上限が読み直されて変わったら、確認した内容では送らない", async () => {
+    // Arrange
+    const model = robotParameters({ linear: 1.2, angular: 3 });
+    await mountWithRobot(model);
+    await waitUntil(() => field("linear-current").textContent.includes("0.60"), "今の値");
+    writeGate.enable();
+    moveSlider("linear", 0.9);
+    button("適用").click();
+    await waitUntil(() => confirmDialog() !== null, "確認の画面");
+    const readsBefore = getRequests().length;
+    model.values[names.linearLimit] = 1.0;
+    await waitUntil(() => getRequests().length > readsBefore && field("linear-limit").textContent.includes("1.00"), "読み直し", 4000);
+
+    // Act
+    clickDialog("confirm");
+    await waitUntil(() => statusLine().includes("もう一度確認してください"), "結果");
+
+    // Assert
+    expect(setRequests()).toHaveLength(0);
+  }, 10_000);
+
+  test("空の返事は受け付けたことにしない。選んだ値は残る", async () => {
+    // Arrange
+    const model = robotParameters({ linear: 1.2, angular: 3 });
+    model.isReturningEmptyListForSet = true;
+    await mountWithRobot(model);
+    await waitUntil(() => field("linear-current").textContent.includes("0.60"), "今の値");
+    writeGate.enable();
+    moveSlider("linear", 0.4);
+
+    // Act
+    button("適用").click();
+    await waitUntil(() => confirmDialog() !== null, "確認の画面");
+    clickDialog("confirm");
+    await waitUntil(() => statusLine().includes("受け付けませんでした"), "結果");
+
+    // Assert
+    expect(statusLine()).not.toContain("変えました");
+    expect((field("linear-slider") as HTMLInputElement).value).toBe("0.4");
   });
 
   test("V15: 返事が無いと 12 秒で「応答がありません」", async () => {
     // Arrange
-    const model = robotParameters({ linear: 1.5, angular: 4 });
+    const model = robotParameters({ linear: 1.2, angular: 3 });
     await mountWithRobot(model);
     await waitUntil(() => field("linear-current").textContent.includes("0.60"), "今の値");
     writeGate.enable();
@@ -183,11 +249,12 @@ describe("偽のサーバーとの試験", () => {
 
     // Assert
     expect(statusLine()).toContain("応答がありません");
+    expect((field("linear-slider") as HTMLInputElement).value).toBe("0.4");
   });
 
   test("V15: 返事を待っている間に切ると「接続が切れました」。V16: つながり直すと読み直す", async () => {
     // Arrange
-    const model = robotParameters({ linear: 1.5, angular: 4 });
+    const model = robotParameters({ linear: 1.2, angular: 3 });
     await mountWithRobot(model);
     await waitUntil(() => field("linear-current").textContent.includes("0.60"), "今の値");
     writeGate.enable();
@@ -201,6 +268,7 @@ describe("偽のサーバーとの試験", () => {
     // Act
     server.dropAllConnections();
     await waitUntil(() => statusLine().includes("接続が切れました。変わったかどうか分かりません"), "切断の表示");
+    expect((field("linear-slider") as HTMLInputElement).value).toBe("0.4");
     model.isResponding = true;
     await waitUntil(() => server.sockets.length === 2, "つなぎ直し");
     sendServerInfo();
@@ -226,7 +294,7 @@ describe("画面の試験", () => {
   });
 
   test("V6: 上限が読めないとき、「適用」が押せず理由が出る", async () => {
-    const model = robotParameters({ linear: 1.5, angular: 4 });
+    const model = robotParameters({ linear: 1.2, angular: 3 });
     model.values = Object.fromEntries(Object.entries(model.values).filter(([name]) => name !== names.linearLimit));
     await mountWithRobot(model);
     writeGate.enable();
