@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { vi } from "vitest";
-import { FoxgloveClient, type TopicMessage } from "../src/connection/foxgloveClient.ts";
+import { FoxgloveClient, ParameterRequestTimeoutError, type TopicMessage } from "../src/connection/foxgloveClient.ts";
 import { FakeFoxgloveServer, sampleChannel } from "./support/fakeFoxgloveServer.ts";
 import { buildMessageDataFrame, buildServiceCallResponseFrame, parseServiceCallRequestFrame } from "./support/frames.ts";
 
@@ -344,6 +344,26 @@ describe("サービス呼び出し", () => {
 });
 
 describe("パラメータと接続グラフ", () => {
+  test("timeoutMs を過ぎても返事が無い getParameters は失敗にし、あとから届いた返事では何も起きない", async () => {
+    // Arrange
+    await connectClient();
+    sendServerInfo(["parameters"]);
+
+    // Act
+    const pending = client.getParameters(["a"], 20);
+
+    // Assert
+    await expect(pending).rejects.toBeInstanceOf(ParameterRequestTimeoutError);
+    const request = server.jsonReceived("getParameters")[0];
+    server.sendJson({ op: "parameterValues", id: request?.["id"], parameters: [{ name: "a", value: 1 }] });
+    const next = client.getParameters(["a"], 1000);
+    await vi.waitFor(() => {
+      expect(server.jsonReceived("getParameters")).toHaveLength(2);
+    });
+    server.sendJson({ op: "parameterValues", id: server.jsonReceived("getParameters")[1]?.["id"], parameters: [{ name: "a", value: 2 }] });
+    await expect(next).resolves.toEqual([{ name: "a", value: 2 }]);
+  });
+
   test("getParameters は id で返事を対応づける", async () => {
     // Arrange
     await connectClient();

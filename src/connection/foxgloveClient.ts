@@ -49,6 +49,14 @@ export type FoxgloveClientOptions = {
   maximumReconnectDelayMs?: number;
 };
 
+/** パラメータの要求が、待つ時間の上限を過ぎたときのエラー。 */
+export class ParameterRequestTimeoutError extends Error {
+  constructor() {
+    super("parameter request timed out");
+    this.name = "ParameterRequestTimeoutError";
+  }
+}
+
 type PendingRequest<Result> = { resolve: (result: Result) => void; reject: (error: Error) => void };
 
 /**
@@ -189,12 +197,13 @@ export class FoxgloveClient extends TypedEmitter<FoxgloveClientEvents> {
 
   // ---- パラメータ ----
 
-  getParameters(parameterNames: string[]): Promise<Parameter[]> {
-    return this.#requestParameters((id) => ({ op: "getParameters", parameterNames, id }));
+  /** timeoutMs を渡すと、それまでに返事が無ければ ParameterRequestTimeoutError で失敗にし、待っている要求から外す。 */
+  getParameters(parameterNames: string[], timeoutMs?: number): Promise<Parameter[]> {
+    return this.#requestParameters((id) => ({ op: "getParameters", parameterNames, id }), timeoutMs);
   }
 
-  setParameters(parameters: Parameter[]): Promise<Parameter[]> {
-    return this.#requestParameters((id) => ({ op: "setParameters", parameters, id }));
+  setParameters(parameters: Parameter[], timeoutMs?: number): Promise<Parameter[]> {
+    return this.#requestParameters((id) => ({ op: "setParameters", parameters, id }), timeoutMs);
   }
 
   subscribeParameterUpdates(parameterNames: string[]): void {
@@ -417,14 +426,30 @@ export class FoxgloveClient extends TypedEmitter<FoxgloveClientEvents> {
     }
   }
 
-  #requestParameters(buildMessage: (id: string) => ClientJsonMessage): Promise<Parameter[]> {
+  #requestParameters(buildMessage: (id: string) => ClientJsonMessage, timeoutMs?: number): Promise<Parameter[]> {
     const id = `parameter-request-${this.#nextParameterRequestId++}`;
     return new Promise((resolve, reject) => {
       if (!this.#isOpen()) {
         reject(new Error("disconnected"));
         return;
       }
-      this.#pendingParameterRequests.set(id, { resolve, reject });
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      this.#pendingParameterRequests.set(id, {
+        resolve: (parameters) => {
+          clearTimeout(timer);
+          resolve(parameters);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
+      if (timeoutMs !== undefined) {
+        timer = setTimeout(() => {
+          this.#pendingParameterRequests.delete(id);
+          reject(new ParameterRequestTimeoutError());
+        }, timeoutMs);
+      }
       this.#sendJson(buildMessage(id));
     });
   }

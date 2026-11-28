@@ -2,6 +2,24 @@ import type { IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { WebSocketServer, type WebSocket as ServerSocket } from "ws";
 
+/**
+ * パラメータの偽のモデル。本物のブリッジとノードに合わせる。
+ * - 型の印（type: "float64"）が無い値は受け付けず、前の値を返す（ブリッジは印の無い 1.0 を整数にし、ノードが拒む）。
+ * - 書き込める名前は writableLimitNames の対応表にある名前だけ。上限（対応する値）を超える値・0 以下・数でない値は拒む。
+ * - 拒むときも、返事は「設定のあとに読み直した今の値」。
+ */
+export type FakeParameterModel = {
+  values: Record<string, number>;
+  /** 書ける名前 → 上限を持つ名前。 */
+  writableLimitNames: Record<string, string>;
+  /** false なら返事を返さない（ノードが応答しないとき）。 */
+  isResponding: boolean;
+  /** true なら、どんな設定も拒む。 */
+  isRejectingEverything: boolean;
+  /** true なら、setParameters に空の一覧を返す（ノードが応答せず、ブリッジが空の返事を返すとき）。 */
+  isReturningEmptyListForSet?: boolean;
+};
+
 export type ReceivedFrame = { connectionIndex: number; json?: Record<string, unknown>; binary?: Buffer };
 
 /** foxglove.sdk.v1 だけを受ける偽のサーバー。副プロトコルが違う接続は 400 で拒む。 */
@@ -13,6 +31,8 @@ export class FakeFoxgloveServer {
   readonly sockets: ServerSocket[] = [];
 
   readonly #server: WebSocketServer;
+  /** 設定すると、getParameters・setParameters に返事を返す。 */
+  parameterModel: FakeParameterModel | undefined;
 
   private constructor(server: WebSocketServer) {
     this.#server = server;
@@ -23,13 +43,48 @@ export class FakeFoxgloveServer {
       this.offeredProtocolHeaders.push(request.headers["sec-websocket-protocol"]);
       socket.on("message", (data, isBinary) => {
         const buffer = data as Buffer;
-        this.received.push(
-          isBinary
-            ? { connectionIndex, binary: buffer }
-            : { connectionIndex, json: JSON.parse(buffer.toString("utf8")) as Record<string, unknown> },
-        );
+        const frame: ReceivedFrame = isBinary
+          ? { connectionIndex, binary: buffer }
+          : { connectionIndex, json: JSON.parse(buffer.toString("utf8")) as Record<string, unknown> };
+        this.received.push(frame);
+        if (frame.json !== undefined) {
+          this.#answerParameterRequest(frame.json, socket);
+        }
       });
     });
+  }
+
+  #answerParameterRequest(message: Record<string, unknown>, socket: ServerSocket): void {
+    const model = this.parameterModel;
+    if (model === undefined || !model.isResponding) {
+      return;
+    }
+    let requestedNames: string[];
+    if (message["op"] === "getParameters") {
+      requestedNames = message["parameterNames"] as string[];
+    } else if (message["op"] === "setParameters") {
+      const parameters = message["parameters"] as { name: string; value?: unknown; type?: string }[];
+      requestedNames = parameters.map((parameter) => parameter.name);
+      if (!model.isRejectingEverything) {
+        for (const parameter of parameters) {
+          const limitName = model.writableLimitNames[parameter.name];
+          const limit = limitName === undefined ? undefined : model.values[limitName];
+          const value = parameter.value;
+          if (
+            parameter.type === "float64" && typeof value === "number" && Number.isFinite(value) &&
+            limit !== undefined && value > 0 && value <= limit
+          ) {
+            model.values[parameter.name] = value;
+          }
+        }
+      }
+    } else {
+      return;
+    }
+    // 本物のブリッジは、小数の値に type: "float64" を付けて返す。
+    const isEmptyAnswer = message["op"] === "setParameters" && model.isReturningEmptyListForSet === true;
+    const parameters = isEmptyAnswer ? [] : requestedNames.flatMap((name) => (name in model.values ? [{ name, value: model.values[name], type: "float64" }] : []));
+    socket.send(JSON.stringify({ op: "parameterValues", parameters, id: message["id"] }));
   }
 
   static async start(acceptedProtocol = "foxglove.sdk.v1"): Promise<FakeFoxgloveServer> {
