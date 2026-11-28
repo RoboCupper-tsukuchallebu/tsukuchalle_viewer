@@ -1,0 +1,8 @@
+.teleop-speed { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.teleop-speed-axis { margin-bottom: 1rem; }
+.teleop-speed-axis p { margin: 0.25rem 0; }
+.teleop-speed-slider { width: 100%; box-sizing: border-box; min-height: 44px; }
+.teleop-speed-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.teleop-speed-button { min-height: 44px; min-width: 88px; }
+.teleop-speed-reason { color: var(--muted); }
+.teleop-speed-result.is-error { color: var(--danger); font-weight: 700; }

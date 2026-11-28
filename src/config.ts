@@ -110,3 +110,6 @@ export const teleopSpeedPollIntervalMs = 2000;
 
 /** setParameters の返事を待つ時間。ブリッジの待ち時間（5 秒 + 5 秒）より長くする。 */
 export const teleopSpeedSetTimeoutMs = 12_000;
+
+/** 今の値の読み直しで、返事を待つ時間。これを過ぎたら次の読み直しに進む。 */
+export const teleopSpeedReadTimeoutMs = 5000;
